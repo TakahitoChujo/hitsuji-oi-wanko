@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.5.0">
+<link rel="stylesheet" href="style.css?v=0.5.1">
 </head>
 <body>
 <div class="app">
@@ -68,6 +68,7 @@
           </div>
         </section>
         <p class="note">写真はこの端末の中だけで使います。どこにも送信されません。</p>
+        <p class="note ios-only" hidden>音が出ないときは、iPhone のマナーモードを解除してください。</p>
         <p class="err" id="photoErr" role="alert" hidden></p>
         <details class="how-wrap" id="howTo">
           <summary>操作方法</summary>
@@ -101,6 +102,8 @@
           <button id="restartBtn" type="button">最初からやり直す</button>
           <button id="titleBtn" type="button">ステージをえらぶ</button>
         </div>
+        <p class="note ios-only" hidden>音が出ないときは、iPhone のマナーモードを解除してください。</p>
+        <p class="note">画面の向きを変えたときは「最初からやり直す」で、牧場の形が画面に合います。</p>
         <p class="kbd-hint">P か Esc キーでも再開できます</p>
       </div>
     </div>
@@ -163,11 +166,15 @@
           <a class="btn" id="shareSave" download="hitsuji-oi-wanko.png">画像を保存</a>
           <button id="shareCopy" type="button">文章をコピー</button>
         </div>
+        <label class="share-text" id="shareTextWrap" hidden>
+          <span class="hero-lbl">この文章を選んでコピーしてください</span>
+          <textarea id="shareText" rows="3" readonly></textarea>
+        </label>
         <button id="shareClose" class="primary" type="button">閉じる</button>
       </div>
     </div>
   </div>
 </div>
-<script src="game.js?v=0.5.0"></script>
+<script src="game.js?v=0.5.1"></script>
 </body>
 </html>

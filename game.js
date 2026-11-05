@@ -29,6 +29,11 @@
   let muted = false;
 
   try { muted = localStorage.getItem('hitsuji-muted') === '1'; } catch (e) {}
+  try { localStorage.removeItem('hitsuji-best'); } catch (e) {}   // pre-v0.4 single best time, replaced by per-stage progress
+
+  // iPhone mutes web audio when the silent switch is on; say so where sound is mentioned
+  const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) for (const el of document.querySelectorAll('.ios-only')) el.hidden = false;
 
   // ---------- stages ----------
   // sheep personalities: how hard they flee, how fast they panic, how fast they can run
@@ -507,6 +512,8 @@
       text = nearGate ? (touch ? 'いまだ！ゲートボタン' : 'いまだ！Eキーでゲートを閉める') : '全部入った！入口へ走ってゲートを閉めよう';
     } else if (gateClosed && inside < total) {
       text = 'ゲートが閉まってるよ。開けて残りを入れよう';
+    } else if (orientationChanged()) {
+      text = '画面の向きが変わったよ。一時停止→「最初からやり直す」で牧場が画面に合います';
     } else if (elapsed < 3.5) {
       text = 'ステージ' + (stageIdx + 1) + '「' + ST.name + '」';
     } else if (elapsed < 10) {
@@ -1115,6 +1122,7 @@
     document.getElementById('shareLine').href = 'https://line.me/R/msg/text/?' + encodeURIComponent(text + ' ' + SITE);
     document.getElementById('sharePhotoNote').hidden = !dogPhoto;
     document.getElementById('shareCopy').textContent = '文章をコピー';
+    document.getElementById('shareTextWrap').hidden = true;
     shareOv.hidden = false;
     document.getElementById('shareClose').focus();
   }
@@ -1128,8 +1136,15 @@
   document.getElementById('shareClose').addEventListener('click', closeShare);
   document.getElementById('shareCopy').addEventListener('click', e => {
     const text = shareText(lastResult) + ' ' + SITE, btn = e.currentTarget;
-    const done = () => { btn.textContent = 'コピーしました'; };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => { btn.textContent = 'コピーできませんでした'; });
+    // no clipboard access (old browsers, some in-app browsers): hand the text over pre-selected instead
+    const manual = () => {
+      const wrap = document.getElementById('shareTextWrap'), box = document.getElementById('shareText');
+      box.value = text; wrap.hidden = false;
+      box.focus(); box.select();
+      btn.textContent = '下の文章をコピーしてください';
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(() => { btn.textContent = 'コピーしました'; }, manual);
+    else manual();
   });
 
   // ---------- sound ----------
@@ -1396,7 +1411,15 @@
     scale = Math.min(aw / W, ah / H);
     ox = (aw - W * scale) / 2; oy = (ah - H * scale) / 2;
   }
-  addEventListener('resize', resize);
+  // the field's shape (wide or tall) is chosen when a stage is built. Rebuilding mid-game would scramble the
+  // sheep, so a turned phone gets a fresh field only between games; during play the goal banner explains.
+  function orientationChanged() { return (stage.clientHeight > stage.clientWidth * 1.1) !== (H > W); }
+  function onResize() {
+    if ((phase === 'title' || phase === 'win') && orientationChanged()) resetGame(); else resize();
+  }
+  addEventListener('resize', onResize);
+  // the window resize event isn't reliable on every phone / in-app browser when rotating; watch the field itself too
+  if (window.ResizeObserver) new ResizeObserver(onResize).observe(stage);
 
   let last = performance.now();
   function frame(now) {

@@ -109,6 +109,13 @@ body { margin: 0; font-size: 14px; }
   #cropOv { z-index: 5; }   /* the crop dialog can open on top of the result screen */
 
   /* share sheet */
+  .share-text { display: grid; gap: 6px; }
+  #shareText {
+    font: inherit; font-size: .85rem; width: 100%; resize: none;
+    padding: 8px 10px; border-radius: 8px; border: 2px solid var(--moss-2);
+    background: var(--moss-2); color: var(--wool);
+    -webkit-user-select: text; user-select: text;
+  }
   #shareImg { width: min(300px, 100%); height: auto; justify-self: center; border-radius: 12px; -webkit-user-select: auto; user-select: auto; -webkit-touch-callout: default; }
   a.btn {
     display: inline-flex; align-items: center; justify-content: center;
