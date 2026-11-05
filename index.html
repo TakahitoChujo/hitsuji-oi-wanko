@@ -6,20 +6,33 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
 <title>ひつじ追いワンコ</title>
-<meta name="description" content="犬を操って、牧場の羊12頭を小屋に追い込むブラウザゲーム。">
+<meta name="description" content="うちの子が、牧羊犬になる。犬を操って羊を小屋に追い込むブラウザゲーム。自分の犬の写真で主人公になれます。">
 <meta name="theme-color" content="#24331f">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- link previews (LINE, X, Slack, ...) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="ひつじ追いワンコ">
+<meta property="og:title" content="ひつじ追いワンコ｜うちの子が、牧羊犬になる。">
+<meta property="og:description" content="犬を操って羊を小屋に追い込むブラウザゲーム。自分の犬の写真で主人公になれます。インストール不要、スマホでも遊べます。">
+<meta property="og:url" content="https://takahitochujo.github.io/hitsuji-oi-wanko/">
+<meta property="og:image" content="https://takahitochujo.github.io/hitsuji-oi-wanko/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="牧場で犬が羊を小屋へ追い込んでいるイラストと、ひつじ追いワンコのロゴ">
+<meta property="og:locale" content="ja_JP">
+<meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.3.1">
+<link rel="stylesheet" href="style.css?v=0.4.0">
 </head>
 <body>
 <div class="app">
   <header class="hud">
     <div class="brand">ひつじ追い<span>ワンコ</span></div>
-    <div class="stat"><span class="lbl">小屋の中</span><span class="val" id="count">0 / 12</span></div>
+    <div class="stat"><span class="lbl">小屋の中</span><span class="val" id="count">0 / 6</span></div>
     <div class="stat"><span class="lbl">タイム</span><span class="val" id="time">0:00.0</span></div>
     <div class="btns">
       <button class="desk gateBtn" type="button" disabled>ゲート(E)</button>
@@ -39,7 +52,7 @@
     <div class="overlay" id="titleOv">
       <div class="card">
         <h1>ひつじ追い<span>ワンコ</span></h1>
-        <p>散らばった12頭の羊を右上の小屋に追い込んで、最後にゲートを閉めたらクリア。ゲートが開いているうちは、羊が外へ出ていくこともあるよ。</p>
+        <p>散らばった羊を右上の小屋に追い込んで、最後にゲートを閉めたらクリア。ゲートが開いているうちは、羊が外へ出ていくこともあるよ。全5ステージ。</p>
         <section class="hero" aria-label="主人公">
           <canvas id="avatar" width="144" height="144" aria-hidden="true"></canvas>
           <div class="hero-ctl">
@@ -61,7 +74,16 @@
           <dt>ゲート</dt><dd>入口のそばで<span class="mouse">Eキー</span><span class="touch">ゲートボタン</span></dd>
           <dt>一時停止</dt><dd>上の一時停止ボタン<span class="mouse">／P・Escキー</span></dd>
         </dl>
-        <button id="startBtn" class="primary" type="button">スタート</button>
+        <button id="startBtn" class="primary" type="button">あそぶ</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="stageOv" hidden>
+      <div class="card">
+        <h2>ステージを<span>えらぶ</span></h2>
+        <div class="stages" id="stageList"></div>
+        <p class="note">★1 クリア　★2 目標タイム以内　★3 名人タイム以内</p>
+        <button id="stageBack" type="button">もどる</button>
       </div>
     </div>
 
@@ -73,7 +95,7 @@
           <button id="resumeBtn" class="primary" type="button">つづける</button>
           <button id="muteBtn" type="button" aria-pressed="false">音 ON</button>
           <button id="restartBtn" type="button">最初からやり直す</button>
-          <button id="titleBtn" type="button">タイトルにもどる</button>
+          <button id="titleBtn" type="button">ステージをえらぶ</button>
         </div>
         <p class="kbd-hint">P か Esc キーでも再開できます</p>
       </div>
@@ -96,17 +118,43 @@
     <div class="overlay" id="winOv" hidden>
       <div class="card">
         <canvas id="winAvatar" width="192" height="192" aria-hidden="true"></canvas>
+        <p class="win-stage" id="winStage"></p>
         <h2>全頭<span>そろった！</span></h2>
+        <div class="win-stars" id="winStars" role="img" aria-label=""></div>
         <div class="result">
           タイム <b id="winTime">0:00.0</b><br>
           ベスト <span id="bestTime">—</span><br>
+          <span class="win-goal" id="winGoal"></span><br>
           <span class="rank" id="rank">見習いワンコ</span>
         </div>
-        <button id="againBtn" class="primary" type="button">もう一回</button>
+        <p class="all-clear" id="allClear" hidden>全ステージクリア！ ★3 を全部そろえられるかな？</p>
+        <div class="menu">
+          <button id="nextBtn" class="primary" type="button">次のステージへ</button>
+          <button id="shareBtn" type="button">結果をシェア</button>
+          <div class="menu two">
+            <button id="againBtn" type="button">もう一回</button>
+            <button id="selectBtn" type="button">ステージ選択</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="shareOv" hidden>
+      <div class="card">
+        <h2>結果を<span>シェア</span></h2>
+        <img id="shareImg" alt="結果の画像（犬の顔、ランク、星、タイム）" width="1080" height="1080">
+        <p class="note">画像を長押し（パソコンは右クリック）で保存できます。<span id="sharePhotoNote">画像にはうちの子の写真が入ります。</span></p>
+        <div class="menu two">
+          <a class="btn" id="shareX" target="_blank" rel="noopener noreferrer">X でポスト</a>
+          <a class="btn" id="shareLine" target="_blank" rel="noopener noreferrer">LINE で送る</a>
+          <a class="btn" id="shareSave" download="hitsuji-oi-wanko.png">画像を保存</a>
+          <button id="shareCopy" type="button">文章をコピー</button>
+        </div>
+        <button id="shareClose" class="primary" type="button">閉じる</button>
       </div>
     </div>
   </div>
 </div>
-<script src="game.js?v=0.3.1"></script>
+<script src="game.js?v=0.4.0"></script>
 </body>
 </html>

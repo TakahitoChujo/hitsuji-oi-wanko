@@ -77,6 +77,34 @@ body { margin: 0; font-size: 14px; }
   #cropCv:focus-visible { outline: 3px solid var(--gorse); outline-offset: 3px; }
   #zoom { width: 100%; accent-color: var(--gorse); }
   #winAvatar { width: 96px; height: 96px; justify-self: center; border-radius: 50%; }
+
+  /* stage select */
+  .stages { display: grid; gap: 8px; }
+  .stage-btn {
+    display: grid; grid-template-columns: 2.2rem 1fr auto; grid-template-areas: "num name stars" "num meta meta";
+    align-items: center; gap: 0 10px; text-align: left; border-radius: 14px; padding: 10px 14px;
+  }
+  .stage-btn .st-num { grid-area: num; font-family: var(--font-display); font-size: 1.5rem; color: var(--gorse); text-align: center; }
+  .stage-btn .st-name { grid-area: name; font-size: 1rem; }
+  .stage-btn .st-stars { grid-area: stars; color: var(--gorse); letter-spacing: .1em; font-size: 1.05rem; }
+  .stage-btn .st-meta { grid-area: meta; font-size: .75rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .stage-btn:disabled .st-num { color: var(--muted); }
+
+  /* result */
+  .card .win-stage { text-align: center; font-weight: 800; color: var(--muted); }
+  #winOv h2 { text-align: center; }
+  .win-stars { text-align: center; font-size: 2.4rem; line-height: 1; color: var(--gorse); letter-spacing: .12em; }
+  .win-goal { font-size: .85rem; color: var(--muted); }
+  .card .all-clear { text-align: center; color: var(--gorse); font-weight: 800; }
+
+  /* share sheet */
+  #shareImg { width: min(300px, 100%); height: auto; justify-self: center; border-radius: 12px; -webkit-user-select: auto; user-select: auto; -webkit-touch-callout: default; }
+  a.btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    font-weight: 800; text-decoration: none; border-radius: 999px; padding: 12px 16px;
+    background: var(--moss-2); color: var(--wool);
+  }
+  a.btn:focus-visible { outline: 3px solid var(--gorse); outline-offset: 2px; }
   @media (pointer: coarse) { .card .kbd-hint { display: none; } }
   button:disabled { opacity: .4; cursor: default; }
   button:focus-visible { outline: 3px solid var(--gorse); outline-offset: 2px; }

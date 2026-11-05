@@ -6,16 +6,19 @@
   const $time = document.getElementById('time');
   const $goal = document.getElementById('goal');
   const titleOv = document.getElementById('titleOv');
+  const stageOv = document.getElementById('stageOv');
   const winOv = document.getElementById('winOv');
+  const shareOv = document.getElementById('shareOv');
   const pauseOv = document.getElementById('pauseOv');
   const pauseBtn = document.getElementById('pauseBtn');
   const gateBtns = [...document.querySelectorAll('.gateBtn')];
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const SITE = 'https://takahitochujo.github.io/hitsuji-oi-wanko/';
 
-  const N_SHEEP = 12, SHEEP_R = 11, DOG_R = 12;
+  const DOG_R = 12;
   const FLEE_R = 150, BARK_R = 230, EYE_R = 210, GATE_REACH = 95;
   let W = 960, H = 600, scale = 1, ox = 0, oy = 0, dpr = 1;
-  let pen, fences, trees, grass;
+  let pen, fences, trees, walls, muds, bridge, grass;
   let sheep = [], dog, rings = [], parts = [], pops = [];
   let phase = 'title', elapsed = 0, barkCd = 0, t = 0, winDelay = 0, shake = 0;
   let gateClosed = false, gateAnim = 0, nearGate = false;
@@ -23,12 +26,67 @@
   let joy = null;                   // touch joystick {id, sx, sy, x, y} (client px)
   let downHeld = false, mouseHeld = false;
   const keys = {};
-  let best = null, muted = false;
+  let muted = false;
 
-  try { const b = parseFloat(localStorage.getItem('hitsuji-best')); if (b > 0) best = b; } catch (e) {}
   try { muted = localStorage.getItem('hitsuji-muted') === '1'; } catch (e) {}
 
+  // ---------- stages ----------
+  // sheep personalities: how hard they flee, how fast they panic, how fast they can run
+  const TYPES = {
+    normal:   { r: 11,   flee: 1,   fearGain: 1,   speed: 1 },
+    black:    { r: 12,   flee: .38, fearGain: .45, speed: .85 },  // stubborn: barely moves for a walking dog
+    lamb:     { r: 8,    flee: 1,   fearGain: 1.2, speed: 1.05 }, // sticks to its mother
+    leader:   { r: 12,   flee: 1,   fearGain: .8,  speed: 1 },    // wears a bell; the flock follows it
+    skittish: { r: 10.5, flee: 1.4, fearGain: 2.6, speed: 1.25 }, // panics and bolts away from the flock
+  };
+  // positions are fractions of the field (u = x / W, v = y / H) so one layout fits landscape and portrait.
+  // par = ★2 time, gold = ★3 time (seconds). These are first guesses to be tuned after playtests.
+  const STAGES = [
+    { name: 'はじめての牧場', flock: { normal: 6 }, par: 45, gold: 28,
+      trees: [[.45, .38, 32], [.62, .74, 26, 1]],
+      hint: 'まずは6頭。羊のうしろに回り込んで、右上の小屋へ押していこう' },
+    { name: '木立の牧場', flock: { normal: 10, leader: 1 }, par: 80, gold: 50,
+      trees: [[.45, .37, 34], [.31, .75, 30], [.68, .72, 26, 1], [.58, .2, 22, 1]],
+      hint: 'ベルをつけたリーダー羊に、みんながついていくよ' },
+    { name: 'ぬかるみ', flock: { normal: 8, black: 2 }, par: 95, gold: 60,
+      trees: [[.5, .3, 28], [.2, .4, 24, 1]],
+      mud: [[.42, .62, 120, 70], [.7, .5, 80, 110]],
+      hint: 'ぬかるみでは足が遅くなる。頑固な黒羊は、ワン！で動かそう' },
+    { name: '川と橋', flock: { normal: 8, lamb: 2 }, par: 110, gold: 70,
+      trees: [[.3, .35, 28], [.18, .58, 22, 1]],
+      river: true,
+      hint: '橋をわたらせよう。子羊はお母さんについていくよ' },
+    { name: '夕暮れの大放牧', flock: { normal: 9, leader: 1, black: 2, lamb: 2, skittish: 2 }, par: 170, gold: 110,
+      trees: [[.45, .3, 30], [.3, .8, 28], [.64, .7, 24, 1]],
+      mud: [[.5, .55, 90, 60]], dusk: true,
+      hint: '全員集合！臆病な羊はすぐ逃げるから、ふせでそっと押そう' },
+  ];
+  const RANKS = { 1: '見習いワンコ', 2: '一人前の牧羊犬', 3: 'チャンピオン牧羊犬' };
+  let stageIdx = 0, ST = STAGES[0];
+
+  function loadProgress() {
+    const empty = { stars: {}, best: {} };
+    try {
+      const p = JSON.parse(localStorage.getItem('hitsuji-progress'));
+      if (!p || typeof p !== 'object') return empty;
+      const out = { stars: {}, best: {} };
+      STAGES.forEach((_, i) => {
+        const s = Number(p.stars && p.stars[i]), b = Number(p.best && p.best[i]);
+        if (s >= 1 && s <= 3) out.stars[i] = Math.floor(s);
+        if (b > 0) out.best[i] = b;
+      });
+      return out;
+    } catch (e) { return empty; }
+  }
+  let progress = loadProgress();
+  function saveProgress() { try { localStorage.setItem('hitsuji-progress', JSON.stringify(progress)); } catch (e) {} }
+  const unlocked = i => i === 0 || (progress.stars[i - 1] || 0) > 0;
+  const starsFor = (i, time) => (time <= STAGES[i].gold ? 3 : time <= STAGES[i].par ? 2 : 1);
+  const starText = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+
   // ---------- world ----------
+  function inBox(b, x, y, m = 0) { return x > b.x0 - m && x < b.x1 + m && y > b.y0 - m && y < b.y1 + m; }
+
   function buildWorld() {
     const portrait = stage.clientHeight > stage.clientWidth * 1.1;
     W = portrait ? 600 : 960;
@@ -40,9 +98,23 @@
       [px, py, px + pw, py], [px + pw, py, px + pw, py + ph], [px, py + ph, px + pw, py + ph],
       [px, py, px, gTop], [px, gBot, px, py + ph],
     ];
-    trees = portrait
-      ? [{ x: 200, y: 330, r: 34 }, { x: 430, y: 520, r: 30 }, { x: 150, y: 640, r: 26, rock: true }, { x: 470, y: 330, r: 22, rock: true }]
-      : [{ x: 430, y: 220, r: 34 }, { x: 300, y: 450, r: 30 }, { x: 650, y: 430, r: 26, rock: true }, { x: 560, y: 120, r: 22, rock: true }];
+    // the river runs between the flock and the pen, with one bridge
+    walls = []; bridge = null;
+    if (ST.river) {
+      if (!portrait) {
+        const x0 = W * .55, x1 = W * .62, g0 = H * .52, g1 = H * .74;
+        walls = [{ x0, y0: 0, x1, y1: g0 }, { x0, y0: g1, x1, y1: H }];
+        bridge = { x0, y0: g0, x1, y1: g1, across: 'x' };
+      } else {
+        const y0 = H * .4, y1 = H * .45, g0 = W * .12, g1 = W * .34;
+        walls = [{ x0: 0, y0, x1: g0, y1 }, { x0: g1, y0, x1: W, y1 }];
+        bridge = { x0: g0, y0, x1: g1, y1, across: 'y' };
+      }
+    }
+    const penBox = { x0: pen.x - 60, y0: 0, x1: W, y1: pen.y + pen.h + 50 };
+    const blocked = (x, y, m) => inBox(penBox, x, y, m) || walls.some(w => inBox(w, x, y, m));
+    trees = ST.trees.map(([u, v, r, rock]) => ({ x: u * W, y: v * H, r, rock: !!rock })).filter(tr => !blocked(tr.x, tr.y, tr.r + 10));
+    muds = (ST.mud || []).map(([u, v, rx, ry]) => ({ x: u * W, y: v * H, rx, ry })).filter(m => !blocked(m.x, m.y, 0));
     renderGrass();
   }
 
@@ -55,19 +127,44 @@
 
   function rand(a, b) { return a + Math.random() * (b - a); }
   function inPen(o) { return o.x > pen.x + 2 && o.x < pen.x + pen.w && o.y > pen.y && o.y < pen.y + pen.h; }
+  function inMud(o) { return muds.some(m => ((o.x - m.x) / m.rx) ** 2 + ((o.y - m.y) / m.ry) ** 2 < 1); }
+
+  function makeSheep(type, x, y) {
+    const T = TYPES[type];
+    const pitch = type === 'lamb' ? rand(1.3, 1.5) : type === 'black' ? rand(.7, .82) : rand(.85, 1.2);
+    return { type, T, r: T.r, x, y, vx: 0, vy: 0, ang: rand(0, 6.28), wa: rand(0, 6.28), fear: 0, inside: false,
+      phase: rand(0, 6.28), alarm: 0, pitch, mother: null, child: null };
+  }
+  function spawnFlock() {
+    sheep = [];
+    const order = [];
+    for (const [type, n] of Object.entries(ST.flock)) for (let i = 0; i < n; i++) order.push(type);
+    order.sort((a, b) => (a === 'lamb') - (b === 'lamb'));   // lambs last, so each can stand by a mother
+    const cx = W * .25, cy = H * .72, spread = 90 + order.length * 6;
+    const penBox = { x0: pen.x - 40, y0: 0, x1: W, y1: pen.y + pen.h + 30 };
+    for (const type of order) {
+      const r = TYPES[type].r;
+      const mother = type === 'lamb' ? sheep.find(o => o.type === 'normal' && !o.child) : null;
+      let s = null;
+      for (let tries = 0; tries < 400 && !s; tries++) {
+        const x = mother ? mother.x + rand(-30, 30) : cx + rand(-spread, spread);
+        const y = mother ? mother.y + rand(-30, 30) : cy + rand(-spread * .8, spread * .8);
+        if (x < 40 || x > W - 40 || y < 40 || y > H - 40) continue;
+        if (inBox(penBox, x, y) || walls.some(w => inBox(w, x, y, r + 8))) continue;
+        if (trees.some(tr => Math.hypot(x - tr.x, y - tr.y) < tr.r + r + 10)) continue;
+        if (sheep.some(o => Math.hypot(x - o.x, y - o.y) < r + o.r + 5)) continue;
+        s = makeSheep(type, x, y);
+      }
+      if (!s) s = makeSheep(type, cx + rand(-30, 30), cy + rand(-30, 30));
+      if (mother) { s.mother = mother; mother.child = s; }
+      sheep.push(s);
+    }
+  }
 
   function resetGame() {
     buildWorld();
-    sheep = [];
-    const cx = W * 0.25, cy = H * 0.72;
-    while (sheep.length < N_SHEEP) {
-      const s = { x: cx + rand(-110, 110), y: cy + rand(-90, 90), vx: 0, vy: 0, ang: rand(0, 6.28), wa: rand(0, 6.28), fear: 0, inside: false, phase: rand(0, 6.28), alarm: 0, pitch: rand(.85, 1.2) };
-      if (s.x < 30 || s.y > H - 30 || s.y < 30) continue;
-      if (trees.some(tr => Math.hypot(s.x - tr.x, s.y - tr.y) < tr.r + 20)) continue;
-      if (sheep.some(o => Math.hypot(s.x - o.x, s.y - o.y) < 26)) continue;
-      sheep.push(s);
-    }
-    dog = { x: W * 0.55, y: H * 0.85, vx: 0, vy: 0, ang: -Math.PI / 2, down: false };
+    spawnFlock();
+    dog = { x: W * .45, y: H * .88, vx: 0, vy: 0, ang: -Math.PI / 2, down: false };
     pointer = null; joy = null;
     rings = []; parts = []; pops = [];
     elapsed = 0; barkCd = 0; winDelay = 0; shake = 0;
@@ -98,6 +195,35 @@
       g.fillStyle = Math.random() < .6 ? '#f2c230' : '#f6f4ee';
       g.beginPath(); g.arc(Math.random() * W, Math.random() * H, rand(1.4, 2.4), 0, 6.28); g.fill();
     }
+    for (const m of muds) {
+      g.fillStyle = '#6e5233';
+      g.beginPath(); g.ellipse(m.x, m.y, m.rx + 6, m.ry + 6, 0, 0, 6.28); g.fill();
+      g.fillStyle = '#86653f';
+      g.beginPath(); g.ellipse(m.x, m.y, m.rx, m.ry, 0, 0, 6.28); g.fill();
+      for (let i = 0; i < 18; i++) {
+        const a = rand(0, 6.28), d = Math.sqrt(Math.random()) * .8;
+        g.fillStyle = Math.random() < .5 ? 'rgba(60,42,24,.45)' : 'rgba(170,140,100,.35)';
+        g.beginPath(); g.ellipse(m.x + Math.cos(a) * m.rx * d, m.y + Math.sin(a) * m.ry * d, rand(4, 10), rand(3, 6), a, 0, 6.28); g.fill();
+      }
+    }
+    for (const w of walls) {
+      g.fillStyle = '#4f8fc0'; g.fillRect(w.x0, w.y0, w.x1 - w.x0, w.y1 - w.y0);
+      g.strokeStyle = 'rgba(255,255,255,.28)'; g.lineWidth = 2;
+      for (let i = 0; i < (w.x1 - w.x0) * (w.y1 - w.y0) / 900; i++) {
+        const x = rand(w.x0 + 6, w.x1 - 14), y = rand(w.y0 + 4, w.y1 - 4);
+        g.beginPath(); g.moveTo(x, y); g.quadraticCurveTo(x + 4, y - 3, x + 8, y); g.stroke();
+      }
+      g.strokeStyle = '#5d7f3a'; g.lineWidth = 4; g.strokeRect(w.x0, w.y0, w.x1 - w.x0, w.y1 - w.y0);
+    }
+    if (bridge) {
+      const b = bridge;
+      g.fillStyle = '#4f8fc0'; g.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+      g.fillStyle = '#b07a44'; g.fillRect(b.x0 - 4, b.y0, b.x1 - b.x0 + 8, b.y1 - b.y0);
+      if (b.across === 'y') g.fillRect(b.x0, b.y0 - 4, b.x1 - b.x0, b.y1 - b.y0 + 8);
+      g.strokeStyle = '#7a4d26'; g.lineWidth = 2;
+      if (b.across === 'x') for (let x = b.x0; x <= b.x1; x += 10) { g.beginPath(); g.moveTo(x, b.y0); g.lineTo(x, b.y1); g.stroke(); }
+      else for (let y = b.y0; y <= b.y1; y += 10) { g.beginPath(); g.moveTo(b.x0, y); g.lineTo(b.x1, y); g.stroke(); }
+    }
     g.fillStyle = '#d8c487';
     g.fillRect(pen.x, pen.y, pen.w, pen.h);
     for (let i = 0; i < 260; i++) {
@@ -125,11 +251,28 @@
       if (vn < 0) { o.vx -= vn * ex; o.vy -= vn * ey; }
     }
   }
+  function pushFromRect(o, r, w) {
+    const cx = Math.max(w.x0, Math.min(w.x1, o.x)), cy = Math.max(w.y0, Math.min(w.y1, o.y));
+    let ex = o.x - cx, ey = o.y - cy;
+    const d = Math.hypot(ex, ey);
+    if (d >= r) return;
+    if (d < 0.001) {
+      // centre is inside the water: leave through the nearest bank
+      const [gap, nx, ny] = [[o.x - w.x0, -1, 0], [w.x1 - o.x, 1, 0], [o.y - w.y0, 0, -1], [w.y1 - o.y, 0, 1]].sort((a, b) => a[0] - b[0])[0];
+      o.x += nx * (gap + r); o.y += ny * (gap + r);
+      return;
+    }
+    ex /= d; ey /= d;
+    o.x = cx + ex * r; o.y = cy + ey * r;
+    const vn = o.vx * ex + o.vy * ey;
+    if (vn < 0) { o.vx -= vn * ex; o.vy -= vn * ey; }
+  }
   function collide(o, r) {
     for (const tr of trees) {
       const dx = o.x - tr.x, dy = o.y - tr.y, d = Math.hypot(dx, dy) || 1, min = tr.r + r;
       if (d < min) { o.x = tr.x + dx / d * min; o.y = tr.y + dy / d * min; }
     }
+    for (const w of walls) pushFromRect(o, r, w);
     for (const f of fences) pushFromSegment(o, r, f);
     pushFromSegment(o, r, gateSeg());
     const m = 14 + r;
@@ -154,10 +297,10 @@
     for (const s of sheep) {
       const dx = s.x - dog.x, dy = s.y - dog.y, d = Math.hypot(dx, dy) || 1;
       if (d < BARK_R) {
-        const k = 1 - d / BARK_R;
-        s.vx += dx / d * (90 + 220 * k);
-        s.vy += dy / d * (90 + 220 * k);
-        s.fear = 1; s.alarm = 0.7;
+        const k = 1 - d / BARK_R, push = (90 + 220 * k) * (s.type === 'black' ? 1.25 : 1);
+        s.vx += dx / d * push;
+        s.vy += dy / d * push;
+        s.fear = s.type === 'black' ? .8 : 1; s.alarm = 0.7;
       }
     }
     sfx.bark();
@@ -194,7 +337,7 @@
 
     // dog
     dog.down = downHeld || mouseHeld || !!keys.Shift;
-    const MAXD = dog.down ? 75 : 250;
+    const MAXD = (dog.down ? 75 : 250) * (inMud(dog) ? .5 : 1);
     let kx = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0);
     let ky = (keys.ArrowDown || keys.s ? 1 : 0) - (keys.ArrowUp || keys.w ? 1 : 0);
     let desX = 0, desY = 0;
@@ -220,20 +363,22 @@
 
     // sheep
     const pcx = pen.x + pen.w / 2 + 20, pcy = pen.y + pen.h / 2;
+    const leader = sheep.find(s => s.type === 'leader');
     for (const s of sheep) {
+      const T = s.T;
       let fx = 0, fy = 0;
       const dx = s.x - dog.x, dy = s.y - dog.y, d = Math.hypot(dx, dy) || 1;
       let calmCap = Infinity;
       if (dog.down && d < EYE_R) {
         // the "eye": steady, calm pressure
-        const k = 1 - d / EYE_R;
-        fx += dx / d * (120 + 160 * k); fy += dy / d * (120 + 160 * k);
+        const k = 1 - d / EYE_R, f = (120 + 160 * k) * (.5 + .5 * T.flee);
+        fx += dx / d * f; fy += dy / d * f;
         s.fear = Math.max(0, s.fear - dt * 1.6);
-        calmCap = 62;
+        calmCap = 62 * T.speed;
       } else if (d < FLEE_R) {
         const k = 1 - d / FLEE_R;
-        fx += dx / d * k * 900; fy += dy / d * k * 900;
-        s.fear = Math.min(1, s.fear + k * dt * 4);
+        fx += dx / d * k * 900 * T.flee; fy += dy / d * k * 900 * T.flee;
+        s.fear = Math.min(1, s.fear + k * dt * 4 * T.fearGain);
       }
       s.fear = Math.max(0, s.fear - dt * 0.45);
       s.alarm = Math.max(0, s.alarm - dt);
@@ -241,21 +386,36 @@
       let cx = 0, cy = 0, ax = 0, ay = 0, n = 0;
       for (const o of sheep) {
         if (o === s) continue;
-        const ex = o.x - s.x, ey = o.y - s.y, dd = Math.hypot(ex, ey) || 1;
-        if (dd < 25) { fx -= ex / dd * (25 - dd) * 40; fy -= ey / dd * (25 - dd) * 40; }
+        const ex = o.x - s.x, ey = o.y - s.y, dd = Math.hypot(ex, ey) || 1, sep = s.r + o.r + 3;
+        if (dd < sep) { fx -= ex / dd * (sep - dd) * 40; fy -= ey / dd * (sep - dd) * 40; }
         if (dd < 95 && o.inside === s.inside) { cx += o.x; cy += o.y; ax += o.vx; ay += o.vy; n++; }
       }
+      let coh = 0.5 + s.fear * 1.6, align = s.fear * 1.5;
+      if (s.type === 'leader') coh *= .3;                           // the leader leads, it doesn't follow
+      if (s.type === 'skittish' && s.fear > .5) coh = align = 0;    // a panicking sheep bolts alone
       if (n) {
-        const coh = 0.5 + s.fear * 1.6;
         fx += (cx / n - s.x) * coh; fy += (cy / n - s.y) * coh;
-        fx += (ax / n - s.vx) * s.fear * 1.5; fy += (ay / n - s.vy) * s.fear * 1.5;
+        fx += (ax / n - s.vx) * align; fy += (ay / n - s.vy) * align;
       }
-      s.wa += rand(-1, 1) * dt * 3;
+      if (leader && s !== leader && leader.inside === s.inside) {
+        const lx = leader.x - s.x, ly = leader.y - s.y, ld = Math.hypot(lx, ly);
+        if (ld > 30 && ld < 220) { fx += lx / ld * 45 * (1 + s.fear); fy += ly / ld * 45 * (1 + s.fear); }
+      }
+      if (s.mother && s.mother.inside === s.inside) {
+        const mx = s.mother.x - s.x, my = s.mother.y - s.y, md = Math.hypot(mx, my);
+        if (md > 20) { const f = Math.min(220, md * 3); fx += mx / md * f; fy += my / md * f; }
+      }
+      s.wa += rand(-1, 1) * dt * (s.type === 'skittish' ? 7 : 3);
       const wander = s.fear > .3 ? 10 : 28;
       fx += Math.cos(s.wa) * wander; fy += Math.sin(s.wa) * wander;
       if (s.inside && s.fear < .4) { fx += (pcx - s.x) * 0.35; fy += (pcy - s.y) * 0.35; }
       for (const tr of trees) {
-        const ex = s.x - tr.x, ey = s.y - tr.y, dd = Math.hypot(ex, ey) || 1, rr = tr.r + SHEEP_R + 26;
+        const ex = s.x - tr.x, ey = s.y - tr.y, dd = Math.hypot(ex, ey) || 1, rr = tr.r + s.r + 26;
+        if (dd < rr) { fx += ex / dd * (rr - dd) * 12; fy += ey / dd * (rr - dd) * 12; }
+      }
+      for (const w of walls) {
+        const qx = Math.max(w.x0, Math.min(w.x1, s.x)), qy = Math.max(w.y0, Math.min(w.y1, s.y));
+        const ex = s.x - qx, ey = s.y - qy, dd = Math.hypot(ex, ey) || 1, rr = s.r + 24;
         if (dd < rr) { fx += ex / dd * (rr - dd) * 12; fy += ey / dd * (rr - dd) * 12; }
       }
       // shy away from the outer fence so sheep don't wedge into corners the dog can't get behind
@@ -268,11 +428,11 @@
       s.vx += fx * dt; s.vy += fy * dt;
       const fr = Math.pow(0.25, dt);
       s.vx *= fr; s.vy *= fr;
-      const max = Math.min(calmCap, (s.inside ? 30 : 38) + s.fear * 145);
+      const max = Math.min(calmCap, ((s.inside ? 30 : 38) + s.fear * 145) * T.speed) * (inMud(s) ? .45 : 1);
       const sp = Math.hypot(s.vx, s.vy);
       if (sp > max) { s.vx *= max / sp; s.vy *= max / sp; }
       s.x += s.vx * dt; s.y += s.vy * dt;
-      collide(s, SHEEP_R);
+      collide(s, s.r);
       if (sp > 6) s.ang = turnToward(s.ang, Math.atan2(s.vy, s.vx), dt * 6);
       if (sp > 120 && Math.random() < dt * 8) dust(s.x, s.y, 1);
 
@@ -299,7 +459,7 @@
     }
     updateGoal(inside);
 
-    if (gateClosed && gateAnim >= 1 && inside === N_SHEEP) {
+    if (gateClosed && gateAnim >= 1 && inside === sheep.length) {
       winDelay += dt;
       if (winDelay > 0.45) win();
     } else winDelay = 0;
@@ -327,24 +487,26 @@
   }
   let lastHud = '', lastGoal = '';
   function updateHud(inside) {
-    const txt = inside + '|' + fmt(elapsed);
+    const txt = inside + '/' + sheep.length + '|' + fmt(elapsed);
     if (txt === lastHud) return;
     lastHud = txt;
-    $count.textContent = inside + ' / ' + N_SHEEP;
+    $count.textContent = inside + ' / ' + sheep.length;
     $time.textContent = fmt(elapsed);
   }
   function updateGoal(inside) {
     let text, hot = false;
-    const touch = matchMedia('(pointer: coarse)').matches;
-    if (inside === N_SHEEP && !gateClosed) {
+    const total = sheep.length, touch = matchMedia('(pointer: coarse)').matches;
+    if (inside === total && !gateClosed) {
       hot = true;
       text = nearGate ? (touch ? 'いまだ！ゲートボタン' : 'いまだ！Eキーでゲートを閉める') : '全部入った！入口へ走ってゲートを閉めよう';
-    } else if (gateClosed && inside < N_SHEEP) {
+    } else if (gateClosed && inside < total) {
       text = 'ゲートが閉まってるよ。開けて残りを入れよう';
-    } else if (elapsed < 6) {
-      text = '羊のうしろに回り込んで、右上の小屋へ押していこう';
-    } else if (inside >= 8) {
-      text = 'あと' + (N_SHEEP - inside) + '頭！ふせでそっと押すと逃げにくい';
+    } else if (elapsed < 3.5) {
+      text = 'ステージ' + (stageIdx + 1) + '「' + ST.name + '」';
+    } else if (elapsed < 10) {
+      text = ST.hint;
+    } else if (inside > 0 && total - inside <= 3) {
+      text = 'あと' + (total - inside) + '頭！ふせでそっと押すと逃げにくい';
     } else {
       text = '';
     }
@@ -356,25 +518,44 @@
     $goal.classList.toggle('hot', hot);
   }
 
+  let lastResult = null, cardBlob = null, cardPromise = null;
   function win() {
     phase = 'win';
     renderPauseBtn();
-    if (best == null || elapsed < best) {
-      best = elapsed;
-      try { localStorage.setItem('hitsuji-best', String(best)); } catch (e) {}
-    }
+    const stars = starsFor(stageIdx, elapsed);
+    const prevBest = progress.best[stageIdx];
+    const newBest = !(prevBest > 0) || elapsed < prevBest;
+    if (newBest) progress.best[stageIdx] = elapsed;
+    progress.stars[stageIdx] = Math.max(progress.stars[stageIdx] || 0, stars);
+    saveProgress();
+    const rank = RANKS[stars];
+    lastResult = { stage: stageIdx, time: elapsed, stars, rank, name: dogName };
+
+    document.getElementById('winStage').textContent = 'ステージ' + (stageIdx + 1) + '「' + ST.name + '」';
+    const $stars = document.getElementById('winStars');
+    $stars.textContent = starText(stars);
+    $stars.setAttribute('aria-label', '星' + stars + 'つ');
     document.getElementById('winTime').textContent = fmt(elapsed);
-    document.getElementById('bestTime').textContent = fmt(best);
-    const rank = elapsed < 50 ? 'チャンピオン牧羊犬' : elapsed < 90 ? '一人前の牧羊犬' : '見習いワンコ';
+    document.getElementById('bestTime').textContent = fmt(progress.best[stageIdx]) + (newBest ? '（新記録！）' : '');
+    document.getElementById('winGoal').textContent = stars < 3
+      ? '★' + (stars + 1) + 'まであと ' + (elapsed - (stars === 1 ? ST.par : ST.gold)).toFixed(1) + '秒'
+      : '名人タイム達成！';
     document.getElementById('rank').textContent = dogName ? dogName + 'は' + rank + '！' : rank;
+    const nextBtn = document.getElementById('nextBtn');
+    nextBtn.hidden = stageIdx === STAGES.length - 1;
+    document.getElementById('allClear').hidden = !nextBtn.hidden;
     $goal.hidden = true;
     for (const b of gateBtns) b.disabled = true;
     if (!reduceMotion) confetti();
     sfx.fanfare();
+    // build the share image now, so the share sheet can open straight from the tap
+    cardBlob = null;
+    const r = lastResult;
+    cardPromise = makeShareCard(r).then(b => { if (lastResult === r) cardBlob = b; return b; }).catch(() => null);
     setTimeout(() => {
       if (phase !== 'win') return;
       winOv.hidden = false;
-      document.getElementById('againBtn').focus();
+      (nextBtn.hidden ? document.getElementById('shareBtn') : nextBtn).focus();
     }, 1100);
   }
 
@@ -390,6 +571,11 @@
 
     drawFenceLine(8, 8, W - 8, 8, 40); drawFenceLine(W - 8, 8, W - 8, H - 8, 40);
     drawFenceLine(W - 8, H - 8, 8, H - 8, 40); drawFenceLine(8, H - 8, 8, 8, 40);
+    if (bridge) {
+      const b = bridge;
+      if (b.across === 'x') { drawFenceLine(b.x0 - 4, b.y0, b.x1 + 4, b.y0, 20); drawFenceLine(b.x0 - 4, b.y1, b.x1 + 4, b.y1, 20); }
+      else { drawFenceLine(b.x0, b.y0 - 4, b.x0, b.y1 + 4, 20); drawFenceLine(b.x1, b.y0 - 4, b.x1, b.y1 + 4, 20); }
+    }
 
     ctx.fillStyle = 'rgba(36,51,31,.55)';
     ctx.font = '700 15px "M PLUS Rounded 1c", sans-serif';
@@ -451,6 +637,13 @@
       ctx.globalAlpha = Math.min(1, p.life * 2);
       outlined(p.text, p.x, p.y, 17, p.color);
       ctx.globalAlpha = 1;
+    }
+
+    if (ST.dusk) {
+      ctx.fillStyle = 'rgba(255,128,48,.14)'; ctx.fillRect(0, 0, W, H);
+      const vg = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * .35, W / 2, H / 2, Math.max(W, H) * .75);
+      vg.addColorStop(0, 'rgba(40,20,40,0)'); vg.addColorStop(1, 'rgba(40,20,40,.38)');
+      ctx.fillStyle = vg; ctx.fillRect(0, 0, W, H);
     }
 
     // touch joystick (screen space)
@@ -517,24 +710,31 @@
   }
 
   function drawSheep(s) {
-    const r = SHEEP_R;
+    const r = s.r, k = r / 11;
     const sp = Math.hypot(s.vx, s.vy);
     const bob = reduceMotion ? 0 : Math.sin(t * 16 + s.phase) * Math.min(1, sp / 80) * 1.5;
+    const shiver = s.type === 'skittish' && s.fear > .3 && !reduceMotion ? rand(-1.2, 1.2) : 0;
+    const black = s.type === 'black';
     ctx.save();
-    ctx.translate(s.x, s.y);
+    ctx.translate(s.x + shiver, s.y);
     ctx.fillStyle = 'rgba(30,45,20,.22)';
-    ctx.beginPath(); ctx.ellipse(2, 5, r * 1.25, r * .85, 0, 0, 6.28); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(2, 5 * k, r * 1.25, r * .85, 0, 0, 6.28); ctx.fill();
     ctx.translate(0, bob);
     ctx.rotate(s.ang);
-    ctx.fillStyle = '#3a3530';
-    ctx.beginPath(); ctx.ellipse(r * .2, -6, 3, 4.5, -.5, 0, 6.28); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * .2, 6, 3, 4.5, .5, 0, 6.28); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 1.05, 0, 6, 4.8, 0, 0, 6.28); ctx.fill();
+    ctx.fillStyle = black ? '#1c1917' : '#3a3530';
+    ctx.beginPath(); ctx.ellipse(r * .2, -6 * k, 3 * k, 4.5 * k, -.5, 0, 6.28); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r * .2, 6 * k, 3 * k, 4.5 * k, .5, 0, 6.28); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(r * 1.05, 0, 6 * k, 4.8 * k, 0, 0, 6.28); ctx.fill();
     const puffs = [[-7, -4, .6], [-7, 4, .6], [-3, 0, .85], [3, -4, .7], [3, 4, .7]];
-    ctx.fillStyle = '#d9d4c6';
-    for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px + .8, py + .8, pr * r, 0, 6.28); ctx.fill(); }
-    ctx.fillStyle = s.inside ? '#fffdf6' : '#f6f4ee';
-    for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px, py, pr * r - .6, 0, 6.28); ctx.fill(); }
+    ctx.fillStyle = black ? '#2a2523' : '#d9d4c6';
+    for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px * k + .8, py * k + .8, pr * r, 0, 6.28); ctx.fill(); }
+    ctx.fillStyle = black ? '#4a4441' : s.type === 'skittish' ? '#f1ebe0' : s.inside ? '#fffdf6' : '#f6f4ee';
+    for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px * k, py * k, pr * r - .6, 0, 6.28); ctx.fill(); }
+    if (s.type === 'leader') {
+      ctx.fillStyle = '#c0392b'; ctx.fillRect(r * .5, -r * .55, 2.4, r * 1.1);       // collar
+      ctx.fillStyle = '#f2c230'; ctx.strokeStyle = '#7a5a10'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(r * .62, 0, 3.4, 0, 6.28); ctx.fill(); ctx.stroke();  // bell
+    }
     ctx.restore();
     if (s.alarm > 0) {
       ctx.font = '16px "Dela Gothic One", sans-serif';
@@ -804,6 +1004,95 @@
   });
   photoClear.addEventListener('click', () => { saveProfile({ photo: null }); usePhoto(null); showPhotoErr(''); });
 
+  // ---------- share: a result card the player sends themselves (nothing is uploaded by the game) ----------
+  function shareText(r) {
+    return (r.name ? r.name + 'は' : '') + r.rank + '！ ひつじ追いワンコ ステージ' + (r.stage + 1) + '「' + STAGES[r.stage].name + '」を'
+      + fmt(r.time) + 'でクリア ' + starText(r.stars) + ' #ひつじ追いワンコ';
+  }
+  function fitFont(g, text, maxW, size, face) {
+    let s = size;
+    do { g.font = face.replace('{s}', s); s -= 2; } while (g.measureText(text).width > maxW && s > 18);
+  }
+  async function makeShareCard(r) {
+    try { await Promise.all([document.fonts.load('64px "Dela Gothic One"'), document.fonts.load('800 40px "M PLUS Rounded 1c"')]); } catch (e) {}
+    const S = 1080, c = document.createElement('canvas');
+    c.width = c.height = S;
+    const g = c.getContext('2d');
+    g.fillStyle = '#7fae5a'; g.fillRect(0, 0, S, S);
+    for (let i = 0; i < S * 2; i += 70) {
+      g.fillStyle = 'rgba(255,255,255,.05)';
+      g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 35, 0); g.lineTo(i + 35 - S, S); g.lineTo(i - S, S); g.fill();
+    }
+    g.fillStyle = 'rgba(36,51,31,.93)';
+    g.beginPath();
+    if (g.roundRect) g.roundRect(70, 70, 940, 940, 48); else g.rect(70, 70, 940, 940);
+    g.fill();
+    // the hero
+    g.fillStyle = '#34482c'; g.beginPath(); g.arc(540, 300, 160, 0, Math.PI * 2); g.fill();
+    drawFace(g, 540, 300, dogPhoto ? 148 : 128);
+    g.strokeStyle = '#f2c230'; g.lineWidth = 14; g.beginPath(); g.arc(540, 300, 154, 0, Math.PI * 2); g.stroke();
+    g.textAlign = 'center'; g.textBaseline = 'alphabetic';
+    const headline = (r.name ? r.name + 'は' : '') + r.rank + '！';
+    // the rounded body face has full kanji coverage (the logo face lacks words like 牧羊犬)
+    g.fillStyle = '#f6f4ee'; fitFont(g, headline, 860, 72, '800 {s}px "M PLUS Rounded 1c", sans-serif');
+    g.fillText(headline, 540, 560);
+    g.fillStyle = '#f2c230'; g.font = '110px "Hiragino Sans", "Yu Gothic", sans-serif';
+    g.fillText(starText(r.stars), 540, 690);
+    const stageLine = 'ステージ' + (r.stage + 1) + '「' + STAGES[r.stage].name + '」';
+    g.fillStyle = '#b9c7a8'; fitFont(g, stageLine, 860, 42, '800 {s}px "M PLUS Rounded 1c", sans-serif');
+    g.fillText(stageLine, 540, 775);
+    g.fillStyle = '#f6f4ee'; g.font = '800 64px "M PLUS Rounded 1c", sans-serif';
+    g.fillText('タイム ' + fmt(r.time), 540, 860);
+    g.fillStyle = '#f2c230'; g.font = '44px "Dela Gothic One", sans-serif';
+    g.fillText('ひつじ追いワンコ', 540, 940);
+    g.fillStyle = '#b9c7a8'; g.font = '700 24px "M PLUS Rounded 1c", sans-serif';
+    g.fillText(SITE.replace('https://', '').replace(/\/$/, ''), 540, 980);
+    return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('toBlob failed'))), 'image/png'));
+  }
+
+  const shareBtn = document.getElementById('shareBtn');
+  let shareUrl = null;
+  async function shareResult() {
+    if (!lastResult) return;
+    shareBtn.disabled = true;
+    try {
+      const blob = cardBlob || await cardPromise;
+      if (!blob) return;
+      const text = shareText(lastResult);
+      const file = new File([blob], 'hitsuji-oi-wanko.png', { type: 'image/png' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        try { await navigator.share({ files: [file], text: text + ' ' + SITE }); return; }
+        catch (e) { if (e && e.name === 'AbortError') return; }   // other failures fall through to the sheet
+      }
+      openShareSheet(blob, text);
+    } finally { shareBtn.disabled = false; }
+  }
+  function openShareSheet(blob, text) {
+    if (shareUrl) URL.revokeObjectURL(shareUrl);
+    shareUrl = URL.createObjectURL(blob);
+    document.getElementById('shareImg').src = shareUrl;
+    document.getElementById('shareSave').href = shareUrl;
+    document.getElementById('shareX').href = 'https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(SITE);
+    document.getElementById('shareLine').href = 'https://line.me/R/msg/text/?' + encodeURIComponent(text + ' ' + SITE);
+    document.getElementById('sharePhotoNote').hidden = !dogPhoto;
+    document.getElementById('shareCopy').textContent = '文章をコピー';
+    shareOv.hidden = false;
+    document.getElementById('shareClose').focus();
+  }
+  function closeShare() {
+    shareOv.hidden = true;
+    if (shareUrl) { URL.revokeObjectURL(shareUrl); shareUrl = null; }
+    document.getElementById('shareImg').removeAttribute('src');
+    shareBtn.focus();
+  }
+  shareBtn.addEventListener('click', shareResult);
+  document.getElementById('shareClose').addEventListener('click', closeShare);
+  document.getElementById('shareCopy').addEventListener('click', e => {
+    const text = shareText(lastResult) + ' ' + SITE, btn = e.currentTarget;
+    const done = () => { btn.textContent = 'コピーしました'; };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, () => { btn.textContent = 'コピーできませんでした'; });
+  });
+
   // ---------- sound ----------
   let actx = null;
   function ac() {
@@ -887,6 +1176,8 @@
 
   addEventListener('keydown', e => {
     if (!cropOv.hidden) { if (e.key === 'Escape') closeCrop(); return; }
+    if (!shareOv.hidden) { if (e.key === 'Escape') closeShare(); return; }
+    if (!stageOv.hidden) { if (e.key === 'Escape') toTitle(); return; }
     if (e.target instanceof HTMLInputElement) return; // typing the dog's name
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === 'p' || k === 'Escape') {
@@ -916,12 +1207,45 @@
   barkBtn.addEventListener('keydown', e => { if (e.key === 'Enter') bark(); });
   for (const b of gateBtns) b.addEventListener('click', toggleGate);
 
+  // ---------- screens ----------
+  function hideOverlays() { for (const o of [titleOv, stageOv, winOv, shareOv, pauseOv]) o.hidden = true; }
   function start() {
     resetGame();
     phase = 'play';
-    titleOv.hidden = true; winOv.hidden = true; pauseOv.hidden = true;
+    hideOverlays();
     renderPauseBtn();
     ac();
+  }
+  function startStage(i) {
+    if (!unlocked(i)) return;
+    stageIdx = i; ST = STAGES[i];
+    start();
+  }
+  function el(tag, cls, text) { const e = document.createElement(tag); e.className = cls; if (text != null) e.textContent = text; return e; }
+  function openStages() {
+    phase = 'title';
+    renderPauseBtn();
+    const list = document.getElementById('stageList');
+    list.replaceChildren(...STAGES.map((S, i) => {
+      const b = el('button', 'stage-btn');
+      b.type = 'button';
+      b.disabled = !unlocked(i);
+      const stars = progress.stars[i] || 0, best = progress.best[i];
+      b.append(
+        el('span', 'st-num', String(i + 1)),
+        el('span', 'st-name', S.name),
+        el('span', 'st-stars', unlocked(i) ? starText(stars) : ''),
+        el('span', 'st-meta', !unlocked(i) ? '前のステージをクリアすると遊べます' : best ? 'ベスト ' + fmt(best) : 'まだクリアしていません'),
+      );
+      b.setAttribute('aria-label', 'ステージ' + (i + 1) + ' ' + S.name + (unlocked(i) ? '、星' + stars + 'つ' : '、まだ遊べません'));
+      b.addEventListener('click', () => startStage(i));
+      return b;
+    }));
+    hideOverlays();
+    stageOv.hidden = false;
+    // focus the furthest stage the player can play
+    const btns = [...list.querySelectorAll('button:not(:disabled)')];
+    (btns.find((b, i) => !progress.stars[i]) || btns[btns.length - 1]).focus();
   }
   function pause() {
     if (phase !== 'play') return;
@@ -941,17 +1265,21 @@
   }
   function toTitle() {
     phase = 'title';
-    resetGame();
-    pauseOv.hidden = true; winOv.hidden = true; titleOv.hidden = false;
+    hideOverlays();
+    titleOv.hidden = false;
     renderPauseBtn();
+    document.getElementById('startBtn').focus();
   }
   function renderPauseBtn() { pauseBtn.disabled = phase !== 'play'; }
   pauseBtn.addEventListener('click', pause);
   document.getElementById('resumeBtn').addEventListener('click', resume);
-  document.getElementById('titleBtn').addEventListener('click', toTitle);
-  document.getElementById('startBtn').addEventListener('click', start);
+  document.getElementById('titleBtn').addEventListener('click', openStages);
+  document.getElementById('startBtn').addEventListener('click', openStages);
+  document.getElementById('stageBack').addEventListener('click', toTitle);
   document.getElementById('againBtn').addEventListener('click', start);
   document.getElementById('restartBtn').addEventListener('click', start);
+  document.getElementById('nextBtn').addEventListener('click', () => startStage(stageIdx + 1));
+  document.getElementById('selectBtn').addEventListener('click', openStages);
 
   // ---------- loop ----------
   function resize() {
@@ -975,10 +1303,6 @@
     requestAnimationFrame(frame);
   }
 
-  function boot(data) {
-    if (data && data.best > 0 && (best == null || data.best < best)) best = data.best;
-    resetGame();
-    requestAnimationFrame(frame);
-  }
-  boot({});
+  resetGame();
+  requestAnimationFrame(frame);
 })();
