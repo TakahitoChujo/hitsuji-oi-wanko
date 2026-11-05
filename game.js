@@ -40,23 +40,24 @@
     skittish: { r: 10.5, flee: 1.4, fearGain: 2.6, speed: 1.25 }, // panics and bolts away from the flock
   };
   // positions are fractions of the field (u = x / W, v = y / H) so one layout fits landscape and portrait.
-  // par = ★2 time, gold = ★3 time (seconds). These are first guesses to be tuned after playtests.
+  // par = ★2 time, gold = ★3 time (seconds). Set at roughly 4x / 2x the best time of a herding bot;
+  // provisional until real playtests.
   const STAGES = [
-    { name: 'はじめての牧場', flock: { normal: 6 }, par: 45, gold: 28,
+    { name: 'はじめての牧場', flock: { normal: 6 }, par: 55, gold: 30,
       trees: [[.45, .38, 32], [.62, .74, 26, 1]],
       hint: 'まずは6頭。羊のうしろに回り込んで、右上の小屋へ押していこう' },
-    { name: '木立の牧場', flock: { normal: 10, leader: 1 }, par: 80, gold: 50,
+    { name: '木立の牧場', flock: { normal: 10, leader: 1 }, par: 90, gold: 50,
       trees: [[.45, .37, 34], [.31, .75, 30], [.68, .72, 26, 1], [.58, .2, 22, 1]],
       hint: 'ベルをつけたリーダー羊に、みんながついていくよ' },
-    { name: 'ぬかるみ', flock: { normal: 8, black: 2 }, par: 95, gold: 60,
+    { name: 'ぬかるみ', flock: { normal: 8, black: 2 }, par: 110, gold: 65,
       trees: [[.5, .3, 28], [.2, .4, 24, 1]],
       mud: [[.42, .62, 120, 70], [.7, .5, 80, 110]],
       hint: 'ぬかるみでは足が遅くなる。頑固な黒羊は、ワン！で動かそう' },
-    { name: '川と橋', flock: { normal: 8, lamb: 2 }, par: 110, gold: 70,
+    { name: '川と橋', flock: { normal: 8, lamb: 2 }, par: 130, gold: 75,
       trees: [[.3, .35, 28], [.18, .58, 22, 1]],
       river: true,
       hint: '橋をわたらせよう。子羊はお母さんについていくよ' },
-    { name: '夕暮れの大放牧', flock: { normal: 9, leader: 1, black: 2, lamb: 2, skittish: 2 }, par: 170, gold: 110,
+    { name: '夕暮れの大放牧', flock: { normal: 9, leader: 1, black: 2, lamb: 2, skittish: 2 }, par: 190, gold: 110,
       trees: [[.45, .3, 30], [.3, .8, 28], [.64, .7, 24, 1]],
       mud: [[.5, .55, 90, 60]], dusk: true,
       hint: '全員集合！臆病な羊はすぐ逃げるから、ふせでそっと押そう' },
@@ -91,7 +92,8 @@
     const portrait = stage.clientHeight > stage.clientWidth * 1.1;
     W = portrait ? 600 : 960;
     H = portrait ? 900 : 600;
-    const pw = 210, ph = 180, px = W - pw - 30, py = 30, gap = 92;
+    // the pen sits flush against the right fence: any strip left between them traps sheep the dog can't get behind
+    const pw = 210, ph = 180, px = W - pw - 8, py = 30, gap = 92;
     const gTop = py + (ph - gap) / 2, gBot = gTop + gap;
     pen = { x: px, y: py, w: pw, h: ph, gTop, gBot, gap };
     fences = [
@@ -118,9 +120,11 @@
     renderGrass();
   }
 
-  // gate swings from pointing outward (open, lies along the outside like a wing) to closing the opening
+  // gate swings from open (angled up-left like a wing, its tip reaching the top fence) to closing the opening.
+  // The open angle matters: pointing straight left left a pocket between the gate and the top fence where
+  // sheep wedged in and the dog could never get behind them.
   function gateSeg() {
-    const phi = (1 - gateAnim) * Math.PI / 2;
+    const phi = (1 - gateAnim) * Math.PI * .75;
     const hx = pen.x, hy = pen.gTop;
     return [hx, hy, hx - Math.sin(phi) * pen.gap, hy + Math.cos(phi) * pen.gap];
   }
@@ -413,6 +417,8 @@
         const ex = s.x - tr.x, ey = s.y - tr.y, dd = Math.hypot(ex, ey) || 1, rr = tr.r + s.r + 26;
         if (dd < rr) { fx += ex / dd * (rr - dd) * 12; fy += ey / dd * (rr - dd) * 12; }
       }
+      // outside sheep keep off the pen's outer walls too, so none ends up pinned along the bottom of the pen
+      if (!s.inside && s.y > pen.y + pen.h && s.y < pen.y + pen.h + 50 && s.x > pen.x - 10) fy += (pen.y + pen.h + 50 - s.y) * 7;
       for (const w of walls) {
         const qx = Math.max(w.x0, Math.min(w.x1, s.x)), qy = Math.max(w.y0, Math.min(w.y1, s.y));
         const ex = s.x - qx, ey = s.y - qy, dd = Math.hypot(ex, ey) || 1, rr = s.r + 24;
@@ -547,11 +553,11 @@
     $goal.hidden = true;
     for (const b of gateBtns) b.disabled = true;
     if (!reduceMotion) confetti();
+    bgmStop();
     sfx.fanfare();
-    // build the share image now, so the share sheet can open straight from the tap
-    cardBlob = null;
-    const r = lastResult;
-    cardPromise = makeShareCard(r).then(b => { if (lastResult === r) cardBlob = b; return b; }).catch(() => null);
+    rebuildCard();
+    // the hook of the game: offer "play as your own dog" once the player has had fun, not on the title screen
+    document.getElementById('invite').hidden = !!dogPhoto || !!loadProfile().inviteDone;
     setTimeout(() => {
       if (phase !== 'win') return;
       winOv.hidden = false;
@@ -605,6 +611,13 @@
     for (const f of fences) drawFenceLine(...f, 30);
     drawGate();
     for (const it of items) it.f();
+    if (dogName) {
+      // name tag over the hero, kept readable on small screens
+      ctx.textAlign = 'center';
+      ctx.globalAlpha = .9;
+      outlined(dogName, dog.x, dog.y - 22 - faceR() * .6, Math.min(22, Math.max(13, 12 / scale)), '#f6f4ee', '800 {s}px "M PLUS Rounded 1c", sans-serif');
+      ctx.globalAlpha = 1;
+    }
 
     if (dog.down && phase === 'play') {
       ctx.strokeStyle = 'rgba(242,194,48,.35)'; ctx.lineWidth = 2;
@@ -635,7 +648,7 @@
     }
     for (const p of pops) {
       ctx.globalAlpha = Math.min(1, p.life * 2);
-      outlined(p.text, p.x, p.y, 17, p.color);
+      outlined(p.text, p.x, p.y, 17, p.color, '800 {s}px "M PLUS Rounded 1c", sans-serif');
       ctx.globalAlpha = 1;
     }
 
@@ -660,8 +673,9 @@
     }
   }
 
-  function outlined(text, x, y, size, fill) {
-    ctx.font = size + 'px "Dela Gothic One", sans-serif';
+  // face: the logo face suits short kana like ワン！; anything with arbitrary kanji (a dog's name) needs the body face
+  function outlined(text, x, y, size, fill, font = '{s}px "Dela Gothic One", sans-serif') {
+    ctx.font = font.replace('{s}', size);
     ctx.lineWidth = 4; ctx.strokeStyle = '#24331f'; ctx.fillStyle = fill;
     ctx.strokeText(text, x, y); ctx.fillText(text, x, y);
   }
@@ -784,12 +798,15 @@
     ctx.restore();
     if (dogPhoto) {
       // the photo head stays upright (a sideways face reads badly) and is drawn big so it's recognisable
-      const hr = d.down ? 11 : 13, hx = d.x + Math.cos(d.ang) * 15, hy = d.y + Math.sin(d.ang) * 15 - (d.down ? 0 : 2);
+      const hr = faceR() * (d.down ? .85 : 1), reach = 15 + (hr - 13) * .5;
+      const hx = d.x + Math.cos(d.ang) * reach, hy = d.y + Math.sin(d.ang) * reach - (d.down ? 0 : 2);
       ctx.fillStyle = coat.dark;
       ctx.beginPath(); ctx.arc(hx, hy, hr + 2, 0, Math.PI * 2); ctx.fill();
       drawFace(ctx, hx, hy, hr);
     }
   }
+  // photo head radius in world units: at least ~13 CSS px on screen, so the face reads on a phone
+  function faceR() { return Math.min(22, Math.max(13, 13 / scale)); }
 
   // ---------- hero: the player's own dog (photo never leaves the device) ----------
   const COAT_DEFAULT = { main: '#c8783a', dark: '#9c5726', light: '#d98e4f', ear: '#a8602b' };
@@ -880,11 +897,21 @@
     const gen = ++photoGen;
     if (!src) { dogPhoto = null; coat = COAT_DEFAULT; renderHero(); return; }
     const img = new Image();
-    img.onload = () => { if (gen !== photoGen) return; dogPhoto = img; coat = coatFrom(img); renderHero(); };
+    img.onload = () => {
+      if (gen !== photoGen) return;
+      dogPhoto = img; coat = coatFrom(img); renderHero();
+      if (phase === 'win') {   // picked from the result screen: the share card should show the new face
+        document.getElementById('invite').hidden = true;
+        rebuildCard();
+      }
+    };
     img.onerror = () => { if (gen !== photoGen) return; dogPhoto = null; coat = COAT_DEFAULT; renderHero(); };
     img.src = src;
   }
-  function showPhotoErr(msg) { $photoErr.textContent = msg; $photoErr.hidden = !msg; }
+  // the photo can be picked from the title screen or from the result screen's invite; show the error where the player is
+  function showPhotoErr(msg) {
+    for (const el of [$photoErr, document.getElementById('inviteErr')]) { el.textContent = msg; el.hidden = !msg; }
+  }
 
   {
     const p = loadProfile();
@@ -989,7 +1016,7 @@
   function closeCrop() {
     const wasOpen = !cropOv.hidden;
     crop = null; drag = null; cropOv.hidden = true;
-    if (wasOpen) document.getElementById('photoBtn').focus();
+    if (wasOpen) document.getElementById(titleOv.hidden ? 'shareBtn' : 'photoBtn').focus();
   }
   document.getElementById('cropCancel').addEventListener('click', closeCrop);
   document.getElementById('cropOk').addEventListener('click', () => {
@@ -1000,7 +1027,9 @@
     const data = oc.toDataURL('image/jpeg', 0.88);
     closeCrop();
     usePhoto(data);
-    if (!saveProfile({ photo: data })) showPhotoErr('写真を保存できませんでした。今回はこの写真で遊べますが、次に開いたときは元に戻ります。');
+    showPhotoErr('');
+    // once a photo has been set the invite has done its job, even if the photo is removed later
+    if (!saveProfile({ photo: data, inviteDone: true })) showPhotoErr('写真を保存できませんでした。今回はこの写真で遊べますが、次に開いたときは元に戻ります。');
   });
   photoClear.addEventListener('click', () => { saveProfile({ photo: null }); usePhoto(null); showPhotoErr(''); });
 
@@ -1048,6 +1077,16 @@
     g.fillStyle = '#b9c7a8'; g.font = '700 24px "M PLUS Rounded 1c", sans-serif';
     g.fillText(SITE.replace('https://', '').replace(/\/$/, ''), 540, 980);
     return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('toBlob failed'))), 'image/png'));
+  }
+
+  // build the share image as soon as the result is known (and again if the face changes), so the
+  // share sheet can open straight from the tap; only the newest build may land
+  let cardGen = 0;
+  function rebuildCard() {
+    const gen = ++cardGen, r = lastResult;
+    cardBlob = null;
+    if (!r) return;
+    cardPromise = makeShareCard(r).then(b => { if (gen === cardGen) cardBlob = b; return b; }).catch(() => null);
   }
 
   const shareBtn = document.getElementById('shareBtn');
@@ -1137,11 +1176,65 @@
       [523, 659, 784, 1047].forEach((f, i) => tone({ type: 'triangle', f0: f, at: i * .12, dur: i === 3 ? .5 : .14, vol: .18 }));
     },
   };
+  // background music: a short pastoral tune generated on the fly (no audio files), C - F - Am - G
+  const BGM_TEMPO = 96;
+  const BGM_MELODY = [   // MIDI notes, 0 = rest; one entry per eighth note, 8 bars
+    76, 0, 79, 0, 81, 0, 79, 76, 74, 0, 72, 0, 74, 0, 0, 0,
+    76, 0, 79, 0, 81, 0, 84, 81, 79, 0, 76, 0, 79, 0, 0, 0,
+    81, 0, 79, 0, 76, 0, 74, 76, 79, 0, 76, 0, 74, 0, 72, 0,
+    74, 0, 76, 0, 79, 0, 76, 74, 72, 0, 0, 0, 0, 0, 0, 0,
+  ];
+  const BGM_BASS = [48, 53, 45, 43];   // C F A G roots, each held for two bars
+  const bgm = { on: false, timer: 0, next: 0, step: 0, out: null };
+  const midiHz = m => 440 * Math.pow(2, (m - 69) / 12);
+  function bgmNote(m, at, dur, type, vol) {
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = midiHz(m);
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(vol, at + .02);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+    o.connect(g); g.connect(bgm.out);
+    o.start(at); o.stop(at + dur + .05);
+  }
+  function bgmTick() {
+    if (!bgm.on || !actx) return;
+    const eighth = 60 / BGM_TEMPO / 2;
+    while (bgm.next < actx.currentTime + .35) {   // schedule a little ahead so timer jitter never shows
+      const i = bgm.step % BGM_MELODY.length;
+      if (BGM_MELODY[i]) bgmNote(BGM_MELODY[i], bgm.next, eighth * 1.7, 'triangle', .045);
+      if (i % 8 === 0) bgmNote(BGM_BASS[Math.floor(i / 16) % 4], bgm.next, eighth * 7.5, 'sine', .055);
+      bgm.next += eighth; bgm.step++;
+    }
+  }
+  function bgmStart() {
+    const a = ac();
+    if (!a || bgm.on) return;
+    bgm.on = true;
+    bgm.out = a.createGain();
+    bgm.out.gain.setValueAtTime(0.0001, a.currentTime);
+    bgm.out.gain.exponentialRampToValueAtTime(1, a.currentTime + 1.2);
+    bgm.out.connect(a.destination);
+    bgm.next = a.currentTime + .1;
+    bgm.timer = setInterval(bgmTick, 100);
+    bgmTick();
+  }
+  function bgmStop() {
+    if (!bgm.on) return;
+    bgm.on = false;
+    clearInterval(bgm.timer);
+    const out = bgm.out, now = actx.currentTime;
+    out.gain.cancelScheduledValues(now);
+    out.gain.setValueAtTime(Math.max(out.gain.value, 0.0001), now);
+    out.gain.exponentialRampToValueAtTime(0.0001, now + .4);
+    setTimeout(() => out.disconnect(), 600);
+  }
+
   const muteBtn = document.getElementById('muteBtn');
   function renderMute() { muteBtn.textContent = muted ? '音 OFF' : '音 ON'; muteBtn.setAttribute('aria-pressed', String(muted)); }
   muteBtn.addEventListener('click', () => {
     muted = !muted;
     try { localStorage.setItem('hitsuji-muted', muted ? '1' : '0'); } catch (e) {}
+    if (muted) bgmStop();
     renderMute();
   });
   renderMute();
@@ -1214,7 +1307,7 @@
     phase = 'play';
     hideOverlays();
     renderPauseBtn();
-    ac();
+    bgmStart();
   }
   function startStage(i) {
     if (!unlocked(i)) return;
@@ -1224,6 +1317,7 @@
   function el(tag, cls, text) { const e = document.createElement(tag); e.className = cls; if (text != null) e.textContent = text; return e; }
   function openStages() {
     phase = 'title';
+    bgmStop();
     renderPauseBtn();
     const list = document.getElementById('stageList');
     list.replaceChildren(...STAGES.map((S, i) => {
@@ -1252,6 +1346,7 @@
     phase = 'paused';
     joy = null; mouseHeld = false; setDown(false);
     for (const k in keys) keys[k] = false;
+    bgmStop();
     pauseOv.hidden = false;
     renderPauseBtn();
     document.getElementById('resumeBtn').focus();
@@ -1261,10 +1356,11 @@
     phase = 'play';
     pauseOv.hidden = true;
     renderPauseBtn();
-    ac();
+    bgmStart();
   }
   function toTitle() {
     phase = 'title';
+    bgmStop();
     hideOverlays();
     titleOv.hidden = false;
     renderPauseBtn();
@@ -1280,6 +1376,14 @@
   document.getElementById('restartBtn').addEventListener('click', start);
   document.getElementById('nextBtn').addEventListener('click', () => startStage(stageIdx + 1));
   document.getElementById('selectBtn').addEventListener('click', openStages);
+  document.getElementById('invitePhoto').addEventListener('click', () => { showPhotoErr(''); photoInput.click(); });
+  document.getElementById('inviteLater').addEventListener('click', () => {
+    saveProfile({ inviteDone: true });
+    document.getElementById('invite').hidden = true;
+    document.getElementById('shareBtn').focus();
+  });
+  // controls are obvious on touch (on-screen buttons) but not with a mouse (right-click to bark), so open them there
+  if (!matchMedia('(pointer: coarse)').matches) document.getElementById('howTo').open = true;
 
   // ---------- loop ----------
   function resize() {

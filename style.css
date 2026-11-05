@@ -97,6 +97,17 @@ body { margin: 0; font-size: 14px; }
   .win-goal { font-size: .85rem; color: var(--muted); }
   .card .all-clear { text-align: center; color: var(--gorse); font-weight: 800; }
 
+  /* title */
+  .card .tagline { font-weight: 800; color: var(--wool); font-size: 1.1rem; margin-top: -6px; }
+  .how-wrap summary { cursor: pointer; font-weight: 800; color: var(--gorse); padding-block: 4px; }
+  .how-wrap summary:focus-visible { outline: 3px solid var(--gorse); outline-offset: 2px; border-radius: 6px; }
+  .how-wrap[open] summary { margin-bottom: 8px; }
+
+  /* "play as your own dog" offer on the result screen */
+  .invite { display: grid; gap: 8px; padding: 14px; border-radius: 14px; border: 2px dashed var(--gorse); }
+  .invite-title { margin: 0; font-weight: 800; color: var(--wool) !important; }
+  #cropOv { z-index: 5; }   /* the crop dialog can open on top of the result screen */
+
   /* share sheet */
   #shareImg { width: min(300px, 100%); height: auto; justify-self: center; border-radius: 12px; -webkit-user-select: auto; user-select: auto; -webkit-touch-callout: default; }
   a.btn {

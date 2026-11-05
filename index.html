@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.4.0">
+<link rel="stylesheet" href="style.css?v=0.5.0">
 </head>
 <body>
 <div class="app">
@@ -52,7 +52,9 @@
     <div class="overlay" id="titleOv">
       <div class="card">
         <h1>ひつじ追い<span>ワンコ</span></h1>
-        <p>散らばった羊を右上の小屋に追い込んで、最後にゲートを閉めたらクリア。ゲートが開いているうちは、羊が外へ出ていくこともあるよ。全5ステージ。</p>
+        <p class="tagline">うちの子が、牧羊犬になる。</p>
+        <p>羊を小屋に追い込んで、最後にゲートを閉めたらクリア。全5ステージ。</p>
+        <button id="startBtn" class="primary" type="button">あそぶ</button>
         <section class="hero" aria-label="主人公">
           <canvas id="avatar" width="144" height="144" aria-hidden="true"></canvas>
           <div class="hero-ctl">
@@ -67,14 +69,16 @@
         </section>
         <p class="note">写真はこの端末の中だけで使います。どこにも送信されません。</p>
         <p class="err" id="photoErr" role="alert" hidden></p>
-        <dl class="how">
-          <dt>移動</dt><dd><span class="mouse">マウスを動かす／矢印キー・WASD</span><span class="touch">画面のどこかを押して、行きたい方向へスライド</span></dd>
-          <dt>ワン！</dt><dd><span class="mouse">右クリック／スペース</span><span class="touch">ワン！ボタン</span>。羊が一気に走るけど、群れがバラけやすい</dd>
-          <dt>ふせ</dt><dd><span class="mouse">左クリックかShiftを押している間</span><span class="touch">ふせボタンを押している間</span>。にらみをきかせて、羊を落ち着かせたままゆっくり押せる</dd>
-          <dt>ゲート</dt><dd>入口のそばで<span class="mouse">Eキー</span><span class="touch">ゲートボタン</span></dd>
-          <dt>一時停止</dt><dd>上の一時停止ボタン<span class="mouse">／P・Escキー</span></dd>
-        </dl>
-        <button id="startBtn" class="primary" type="button">あそぶ</button>
+        <details class="how-wrap" id="howTo">
+          <summary>操作方法</summary>
+          <dl class="how">
+            <dt>移動</dt><dd><span class="mouse">マウスを動かす／矢印キー・WASD</span><span class="touch">画面のどこかを押して、行きたい方向へスライド</span></dd>
+            <dt>ワン！</dt><dd><span class="mouse">右クリック／スペース</span><span class="touch">ワン！ボタン</span>。羊が一気に走るけど、群れがバラけやすい</dd>
+            <dt>ふせ</dt><dd><span class="mouse">左クリックかShiftを押している間</span><span class="touch">ふせボタンを押している間</span>。にらみをきかせて、羊を落ち着かせたままゆっくり押せる</dd>
+            <dt>ゲート</dt><dd>入口のそばで<span class="mouse">Eキー</span><span class="touch">ゲートボタン</span></dd>
+            <dt>一時停止</dt><dd>上の一時停止ボタン<span class="mouse">／P・Escキー</span></dd>
+          </dl>
+        </details>
       </div>
     </div>
 
@@ -128,6 +132,15 @@
           <span class="rank" id="rank">見習いワンコ</span>
         </div>
         <p class="all-clear" id="allClear" hidden>全ステージクリア！ ★3 を全部そろえられるかな？</p>
+        <section class="invite" id="invite" hidden aria-label="うちの子で遊ぶ">
+          <p class="invite-title">うちの子で遊んでみる？</p>
+          <p class="note">写真を選ぶと、その子が主人公になって、シェア画像にも顔がのります。写真はこの端末の中だけで使います。</p>
+          <div class="menu two">
+            <button id="invitePhoto" class="primary" type="button">写真を選ぶ</button>
+            <button id="inviteLater" type="button">あとで</button>
+          </div>
+          <p class="err" id="inviteErr" role="alert" hidden></p>
+        </section>
         <div class="menu">
           <button id="nextBtn" class="primary" type="button">次のステージへ</button>
           <button id="shareBtn" type="button">結果をシェア</button>
@@ -155,6 +168,6 @@
     </div>
   </div>
 </div>
-<script src="game.js?v=0.4.0"></script>
+<script src="game.js?v=0.5.0"></script>
 </body>
 </html>
