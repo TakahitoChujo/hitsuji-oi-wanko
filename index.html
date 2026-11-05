@@ -22,8 +22,7 @@
     <div class="stat"><span class="lbl">タイム</span><span class="val" id="time">0:00.0</span></div>
     <div class="btns">
       <button class="desk gateBtn" type="button" disabled>ゲート(E)</button>
-      <button id="muteBtn" type="button" aria-pressed="false">音 ON</button>
-      <button id="restartBtn" type="button">やり直す</button>
+      <button id="pauseBtn" type="button" disabled>一時停止</button>
     </div>
   </header>
   <div class="stage" id="stage">
@@ -45,8 +44,23 @@
           <dt>ワン！</dt><dd><span class="mouse">右クリック／スペース</span><span class="touch">ワン！ボタン</span>。羊が一気に走るけど、群れがバラけやすい</dd>
           <dt>ふせ</dt><dd><span class="mouse">左クリックかShiftを押している間</span><span class="touch">ふせボタンを押している間</span>。にらみをきかせて、羊を落ち着かせたままゆっくり押せる</dd>
           <dt>ゲート</dt><dd>入口のそばで<span class="mouse">Eキー</span><span class="touch">ゲートボタン</span></dd>
+          <dt>一時停止</dt><dd>上の一時停止ボタン<span class="mouse">／P・Escキー</span></dd>
         </dl>
         <button id="startBtn" class="primary" type="button">スタート</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="pauseOv" hidden>
+      <div class="card">
+        <h2>一時<span>停止中</span></h2>
+        <p>タイムも羊も止まっています。</p>
+        <div class="menu">
+          <button id="resumeBtn" class="primary" type="button">つづける</button>
+          <button id="muteBtn" type="button" aria-pressed="false">音 ON</button>
+          <button id="restartBtn" type="button">最初からやり直す</button>
+          <button id="titleBtn" type="button">タイトルにもどる</button>
+        </div>
+        <p class="kbd-hint">P か Esc キーでも再開できます</p>
       </div>
     </div>
 

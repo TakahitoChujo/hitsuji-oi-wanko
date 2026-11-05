@@ -7,6 +7,8 @@
   const $goal = document.getElementById('goal');
   const titleOv = document.getElementById('titleOv');
   const winOv = document.getElementById('winOv');
+  const pauseOv = document.getElementById('pauseOv');
+  const pauseBtn = document.getElementById('pauseBtn');
   const gateBtns = [...document.querySelectorAll('.gateBtn')];
   const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -169,6 +171,7 @@
 
   // ---------- update ----------
   function update(dt) {
+    if (phase === 'paused') return; // freeze everything, effects included
     t += dt;
     barkCd = Math.max(0, barkCd - dt);
     shake = Math.max(0, shake - dt);
@@ -355,6 +358,7 @@
 
   function win() {
     phase = 'win';
+    renderPauseBtn();
     if (best == null || elapsed < best) {
       best = elapsed;
       try { localStorage.setItem('hitsuji-best', String(best)); } catch (e) {}
@@ -661,13 +665,19 @@
 
   addEventListener('keydown', e => {
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+    if (k === 'p' || k === 'Escape') {
+      if (phase === 'play') pause(); else if (phase === 'paused') resume();
+      return;
+    }
     if (k === ' ') { e.preventDefault(); if (phase === 'play') bark(); return; }
     if (k === 'e') { toggleGate(); return; }
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(k)) e.preventDefault();
     keys[k] = true;
   });
   addEventListener('keyup', e => { keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false; });
-  addEventListener('blur', () => { for (const k in keys) keys[k] = false; downHeld = false; mouseHeld = false; });
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; downHeld = false; mouseHeld = false; pause(); });
+  // stop the clock when the player switches apps or tabs
+  document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
 
   const downBtn = document.getElementById('downBtn');
   const setDown = v => { downHeld = v; downBtn.classList.toggle('held', v); };
@@ -683,12 +693,39 @@
   function start() {
     resetGame();
     phase = 'play';
-    titleOv.hidden = true; winOv.hidden = true;
+    titleOv.hidden = true; winOv.hidden = true; pauseOv.hidden = true;
+    renderPauseBtn();
     ac();
   }
+  function pause() {
+    if (phase !== 'play') return;
+    phase = 'paused';
+    joy = null; mouseHeld = false; setDown(false);
+    for (const k in keys) keys[k] = false;
+    pauseOv.hidden = false;
+    renderPauseBtn();
+    document.getElementById('resumeBtn').focus();
+  }
+  function resume() {
+    if (phase !== 'paused') return;
+    phase = 'play';
+    pauseOv.hidden = true;
+    renderPauseBtn();
+    ac();
+  }
+  function toTitle() {
+    phase = 'title';
+    resetGame();
+    pauseOv.hidden = true; winOv.hidden = true; titleOv.hidden = false;
+    renderPauseBtn();
+  }
+  function renderPauseBtn() { pauseBtn.disabled = phase !== 'play'; }
+  pauseBtn.addEventListener('click', pause);
+  document.getElementById('resumeBtn').addEventListener('click', resume);
+  document.getElementById('titleBtn').addEventListener('click', toTitle);
   document.getElementById('startBtn').addEventListener('click', start);
   document.getElementById('againBtn').addEventListener('click', start);
-  document.getElementById('restartBtn').addEventListener('click', () => { if (phase === 'title') return; start(); });
+  document.getElementById('restartBtn').addEventListener('click', start);
 
   // ---------- loop ----------
   function resize() {

@@ -48,6 +48,10 @@ body { margin: 0; font-size: 14px; }
     touch-action: manipulation;
   }
   button.primary { background: var(--gorse); color: var(--moss); }
+  .card .menu { display: grid; gap: 10px; }
+  .card .menu button { padding-block: 12px; }
+  .card .kbd-hint { font-size: .8rem; }
+  @media (pointer: coarse) { .card .kbd-hint { display: none; } }
   button:disabled { opacity: .4; cursor: default; }
   button:focus-visible { outline: 3px solid var(--gorse); outline-offset: 2px; }
   button:not(:disabled):active { transform: translateY(1px); }
