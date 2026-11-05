@@ -675,9 +675,11 @@
     keys[k] = true;
   });
   addEventListener('keyup', e => { keys[e.key.length === 1 ? e.key.toLowerCase() : e.key] = false; });
-  addEventListener('blur', () => { for (const k in keys) keys[k] = false; downHeld = false; mouseHeld = false; pause(); });
-  // stop the clock when the player switches apps or tabs
+  addEventListener('blur', () => { for (const k in keys) keys[k] = false; downHeld = false; mouseHeld = false; });
+  // stop the clock only when the page is really hidden (app/tab switch). Not on blur:
+  // phone browsers fire blur when a touch grazes the browser's own bars or edges.
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
+  addEventListener('pagehide', pause);
 
   const downBtn = document.getElementById('downBtn');
   const setDown = v => { downHeld = v; downBtn.classList.toggle('held', v); };
