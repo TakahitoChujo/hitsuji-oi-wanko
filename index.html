@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.2.3">
+<link rel="stylesheet" href="style.css?v=0.3.0">
 </head>
 <body>
 <div class="app">
@@ -40,6 +40,20 @@
       <div class="card">
         <h1>ひつじ追い<span>ワンコ</span></h1>
         <p>散らばった12頭の羊を右上の小屋に追い込んで、最後にゲートを閉めたらクリア。ゲートが開いているうちは、羊が外へ出ていくこともあるよ。</p>
+        <section class="hero" aria-label="主人公">
+          <canvas id="avatar" width="144" height="144" aria-hidden="true"></canvas>
+          <div class="hero-ctl">
+            <label class="hero-lbl" for="dogName">主人公の名前</label>
+            <input id="dogName" type="text" maxlength="10" placeholder="ワンコ" autocomplete="off" enterkeyhint="done">
+            <div class="hero-btns">
+              <button id="photoBtn" type="button">うちの子の写真を使う</button>
+              <button id="photoClear" type="button" hidden>写真を外す</button>
+            </div>
+            <input id="photoInput" type="file" accept="image/*" hidden>
+          </div>
+        </section>
+        <p class="note">写真はこの端末の中だけで使います。どこにも送信されません。</p>
+        <p class="err" id="photoErr" role="alert" hidden></p>
         <dl class="how">
           <dt>移動</dt><dd><span class="mouse">マウスを動かす／矢印キー・WASD</span><span class="touch">画面のどこかを押して、行きたい方向へスライド</span></dd>
           <dt>ワン！</dt><dd><span class="mouse">右クリック／スペース</span><span class="touch">ワン！ボタン</span>。羊が一気に走るけど、群れがバラけやすい</dd>
@@ -65,8 +79,23 @@
       </div>
     </div>
 
+    <div class="overlay" id="cropOv" hidden>
+      <div class="card">
+        <h2>顔を<span>まるに合わせよう</span></h2>
+        <canvas id="cropCv" width="480" height="480" aria-label="写真の位置合わせ"></canvas>
+        <label class="hero-lbl" for="zoom">大きさ</label>
+        <input id="zoom" type="range" min="1" max="4" step="0.01" value="1">
+        <p class="note">写真をドラッグして位置を、スライダーで大きさを調整できます。</p>
+        <div class="menu two">
+          <button id="cropCancel" type="button">やめる</button>
+          <button id="cropOk" class="primary" type="button">この子に決定</button>
+        </div>
+      </div>
+    </div>
+
     <div class="overlay" id="winOv" hidden>
       <div class="card">
+        <canvas id="winAvatar" width="192" height="192" aria-hidden="true"></canvas>
         <h2>全頭<span>そろった！</span></h2>
         <div class="result">
           タイム <b id="winTime">0:00.0</b><br>
@@ -78,6 +107,6 @@
     </div>
   </div>
 </div>
-<script src="game.js?v=0.2.3"></script>
+<script src="game.js?v=0.3.0"></script>
 </body>
 </html>

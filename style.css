@@ -51,12 +51,38 @@ body { margin: 0; font-size: 14px; }
   .card .menu { display: grid; gap: 10px; }
   .card .menu button { padding-block: 12px; }
   .card .kbd-hint { font-size: .8rem; }
+  .card .menu.two { grid-template-columns: 1fr 1fr; }
+
+  /* hero: the player's own dog */
+  .hero { display: flex; align-items: center; gap: 14px; padding: 12px; border-radius: 14px; background: var(--moss-2); }
+  #avatar { width: 72px; height: 72px; flex: none; border-radius: 50%; }
+  .hero-ctl { display: grid; gap: 6px; flex: 1; min-width: 0; }
+  .hero-lbl { font-size: .72rem; color: var(--muted); letter-spacing: .08em; }
+  .hero-btns { display: flex; flex-wrap: wrap; gap: 6px; }
+  .hero-btns button { padding: 6px 12px; font-size: .85rem; background: var(--moss); }
+  #dogName {
+    font: inherit; font-weight: 800; width: 100%;
+    padding: 6px 10px; border-radius: 8px;
+    border: 2px solid transparent; background: var(--moss); color: var(--wool);
+    -webkit-user-select: text; user-select: text;
+  }
+  #dogName:focus-visible { outline: none; border-color: var(--gorse); }
+  .card .note { font-size: .78rem; line-height: 1.5; }
+  .card .err { color: #ff9a85; font-size: .85rem; }
+  #cropCv {
+    width: min(260px, 100%); aspect-ratio: 1; justify-self: center;
+    border-radius: 14px; background: #111; touch-action: none; cursor: grab;
+  }
+  #cropCv:active { cursor: grabbing; }
+  #zoom { width: 100%; accent-color: var(--gorse); }
+  #winAvatar { width: 96px; height: 96px; justify-self: center; border-radius: 50%; }
   @media (pointer: coarse) { .card .kbd-hint { display: none; } }
   button:disabled { opacity: .4; cursor: default; }
   button:focus-visible { outline: 3px solid var(--gorse); outline-offset: 2px; }
   button:not(:disabled):active { transform: translateY(1px); }
   .stage { position: relative; min-height: 0; background: var(--meadow); overflow: hidden; }
-  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  #cvs { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: crosshair; }
+  canvas { display: block; }
 
   .goal {
     position: absolute; top: 10px; left: 50%; transform: translateX(-50%);

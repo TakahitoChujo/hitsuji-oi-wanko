@@ -365,8 +365,8 @@
     }
     document.getElementById('winTime').textContent = fmt(elapsed);
     document.getElementById('bestTime').textContent = fmt(best);
-    document.getElementById('rank').textContent =
-      elapsed < 50 ? 'チャンピオン牧羊犬' : elapsed < 90 ? '一人前の牧羊犬' : '見習いワンコ';
+    const rank = elapsed < 50 ? 'チャンピオン牧羊犬' : elapsed < 90 ? '一人前の牧羊犬' : '見習いワンコ';
+    document.getElementById('rank').textContent = dogName + 'は' + rank + '！';
     $goal.hidden = true;
     for (const b of gateBtns) b.disabled = true;
     if (!reduceMotion) confetti();
@@ -555,32 +555,222 @@
     ctx.beginPath(); ctx.ellipse(2, d.down ? 3 : 6, 18, 10, d.ang, 0, 6.28); ctx.fill();
     ctx.rotate(d.ang);
     ctx.scale(d.down ? 1.08 : 1, low);
-    ctx.fillStyle = '#9c5726';
+    ctx.fillStyle = coat.dark;
     for (const [lx, ly, ph] of [[8, -7, 1], [8, 7, -1], [-8, -7, -1], [-8, 7, 1]]) {
       ctx.beginPath(); ctx.ellipse(lx + gait * 3 * ph, ly * (d.down ? 1.25 : 1), 3.5, 2.6, 0, 0, 6.28); ctx.fill();
     }
     const wag = reduceMotion || d.down ? 0 : Math.sin(t * 18) * .5;
     ctx.save(); ctx.translate(-14, 0); ctx.rotate(wag);
-    ctx.strokeStyle = '#c8783a'; ctx.lineWidth = 5; ctx.lineCap = 'round';
+    ctx.strokeStyle = coat.main; ctx.lineWidth = 5; ctx.lineCap = 'round';
     ctx.beginPath(); ctx.arc(-4, 0, 4, -1.2, 3.6); ctx.stroke();
     ctx.strokeStyle = '#f3e3cc'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(-4, 0, 4, 0.5, 2.6); ctx.stroke();
     ctx.restore();
-    ctx.fillStyle = '#c8783a';
+    ctx.fillStyle = coat.main;
     ctx.beginPath(); ctx.ellipse(0, 0, 14, 8.5, 0, 0, 6.28); ctx.fill();
-    ctx.fillStyle = '#d98e4f';
+    ctx.fillStyle = coat.light;
     ctx.beginPath(); ctx.ellipse(-1, -1.5, 9, 4, 0, 0, 6.28); ctx.fill();
-    ctx.fillStyle = '#c8783a';
-    ctx.beginPath(); ctx.arc(13, 0, 7.5, 0, 6.28); ctx.fill();
-    ctx.fillStyle = '#a8602b';
-    ctx.beginPath(); ctx.moveTo(9, -5); ctx.lineTo(13, -11); ctx.lineTo(15, -5); ctx.fill();
-    ctx.beginPath(); ctx.moveTo(9, 5); ctx.lineTo(13, 11); ctx.lineTo(15, 5); ctx.fill();
-    ctx.fillStyle = '#f3e3cc';
-    ctx.beginPath(); ctx.ellipse(18.5, 0, 4.2, 3.6, 0, 0, 6.28); ctx.fill();
-    ctx.fillStyle = '#2b2522';
-    ctx.beginPath(); ctx.arc(22, 0, 1.8, 0, 6.28); ctx.fill();
+    if (!dogPhoto) {
+      ctx.fillStyle = coat.main;
+      ctx.beginPath(); ctx.arc(13, 0, 7.5, 0, 6.28); ctx.fill();
+      ctx.fillStyle = coat.ear;
+      ctx.beginPath(); ctx.moveTo(9, -5); ctx.lineTo(13, -11); ctx.lineTo(15, -5); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(9, 5); ctx.lineTo(13, 11); ctx.lineTo(15, 5); ctx.fill();
+      ctx.fillStyle = '#f3e3cc';
+      ctx.beginPath(); ctx.ellipse(18.5, 0, 4.2, 3.6, 0, 0, 6.28); ctx.fill();
+      ctx.fillStyle = '#2b2522';
+      ctx.beginPath(); ctx.arc(22, 0, 1.8, 0, 6.28); ctx.fill();
+    }
     ctx.restore();
+    if (dogPhoto) {
+      // the photo head stays upright (a sideways face reads badly) and is drawn big so it's recognisable
+      const hr = d.down ? 11 : 13, hx = d.x + Math.cos(d.ang) * 15, hy = d.y + Math.sin(d.ang) * 15 - (d.down ? 0 : 2);
+      ctx.fillStyle = coat.dark;
+      ctx.beginPath(); ctx.arc(hx, hy, hr + 2, 0, Math.PI * 2); ctx.fill();
+      drawFace(ctx, hx, hy, hr);
+    }
   }
+
+  // ---------- hero: the player's own dog (photo never leaves the device) ----------
+  const COAT_DEFAULT = { main: '#c8783a', dark: '#9c5726', light: '#d98e4f', ear: '#a8602b' };
+  let coat = COAT_DEFAULT, dogPhoto = null, dogName = 'ワンコ';
+  const $name = document.getElementById('dogName');
+  const $photoErr = document.getElementById('photoErr');
+  const photoInput = document.getElementById('photoInput');
+  const photoClear = document.getElementById('photoClear');
+
+  function loadProfile() {
+    try { const p = JSON.parse(localStorage.getItem('hitsuji-dog')); return p && typeof p === 'object' ? p : {}; } catch (e) { return {}; }
+  }
+  function saveProfile(patch) {
+    try { localStorage.setItem('hitsuji-dog', JSON.stringify(Object.assign(loadProfile(), patch))); return true; } catch (e) { return false; }
+  }
+
+  function rgbToHsl(r, g, b) {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2;
+    if (mx === mn) return [0, 0, l];
+    const d = mx - mn, s = l > .5 ? d / (2 - mx - mn) : d / (mx + mn);
+    const h = mx === r ? (g - b) / d + (g < b ? 6 : 0) : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [h / 6, s, l];
+  }
+  // body colour = the dominant fur hue near the middle of the face (so a sky or wall behind the
+  // ears doesn't win); a white, black or grey dog has no strong hue and falls back to the plain average
+  function coatFrom(img) {
+    const N = 32, c = document.createElement('canvas');
+    c.width = c.height = N;
+    const g = c.getContext('2d');
+    g.drawImage(img, 0, 0, N, N);
+    const px = g.getImageData(0, 0, N, N).data;
+    const bins = Array.from({ length: 12 }, () => ({ w: 0, r: 0, g: 0, b: 0 }));
+    let ar = 0, ag = 0, ab = 0, n = 0;
+    const R2 = (N * .34) * (N * .34);
+    for (let i = 0; i < px.length; i += 4) {
+      const x = (i / 4) % N - N / 2 + .5, y = Math.floor(i / 4 / N) - N / 2 + .5;
+      if (x * x + y * y > R2) continue;
+      const pr = px[i], pg = px[i + 1], pb = px[i + 2];
+      ar += pr; ag += pg; ab += pb; n++;
+      const [ph, ps, pl] = rgbToHsl(pr, pg, pb);
+      if (ps < .18 || pl < .12 || pl > .9) continue;
+      const bin = bins[Math.floor(ph * 12) % 12];
+      bin.w += ps; bin.r += pr * ps; bin.g += pg * ps; bin.b += pb * ps;
+    }
+    const top = bins.reduce((a, b) => (b.w > a.w ? b : a));
+    const rgb = top.w > n * .06 ? [top.r / top.w, top.g / top.w, top.b / top.w] : [ar / n, ag / n, ab / n];
+    const [h, s, l] = rgbToHsl(...rgb);
+    const L = Math.min(.68, Math.max(.3, l)), S = Math.min(.6, s);
+    const hsl = dl => `hsl(${Math.round(h * 360)} ${Math.round(S * 100)}% ${Math.round(Math.min(.9, Math.max(.12, L + dl)) * 100)}%)`;
+    return { main: hsl(0), dark: hsl(-.14), light: hsl(.08), ear: hsl(-.08) };
+  }
+
+  function drawFace(g, x, y, r) {
+    if (dogPhoto) {
+      g.save();
+      g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.clip();
+      g.drawImage(dogPhoto, x - r, y - r, r * 2, r * 2);
+      g.restore();
+      return;
+    }
+    const c = COAT_DEFAULT;
+    g.fillStyle = c.ear;
+    for (const sx of [-1, 1]) {
+      g.beginPath(); g.moveTo(x + sx * r * .85, y - r * .15); g.lineTo(x + sx * r * .62, y - r * 1.02); g.lineTo(x + sx * r * .12, y - r * .62); g.fill();
+    }
+    g.fillStyle = c.main; g.beginPath(); g.arc(x, y + r * .08, r * .8, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f3e3cc'; g.beginPath(); g.ellipse(x, y + r * .4, r * .42, r * .3, 0, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#2b2522';
+    for (const sx of [-1, 1]) { g.beginPath(); g.arc(x + sx * r * .3, y - r * .05, r * .09, 0, Math.PI * 2); g.fill(); }
+    g.beginPath(); g.arc(x, y + r * .26, r * .11, 0, Math.PI * 2); g.fill();
+  }
+  function renderAvatar(cv) {
+    const g = cv.getContext('2d'), s = cv.width, ring = s * .05;
+    g.clearRect(0, 0, s, s);
+    g.fillStyle = '#34482c'; g.beginPath(); g.arc(s / 2, s / 2, s / 2, 0, Math.PI * 2); g.fill();
+    drawFace(g, s / 2, s / 2, dogPhoto ? s / 2 - ring : s * .4);
+    g.strokeStyle = '#f2c230'; g.lineWidth = ring;
+    g.beginPath(); g.arc(s / 2, s / 2, s / 2 - ring / 2, 0, Math.PI * 2); g.stroke();
+  }
+  function renderHero() {
+    renderAvatar(document.getElementById('avatar'));
+    renderAvatar(document.getElementById('winAvatar'));
+    photoClear.hidden = !dogPhoto;
+  }
+  function usePhoto(src) {
+    if (!src) { dogPhoto = null; coat = COAT_DEFAULT; renderHero(); return; }
+    const img = new Image();
+    img.onload = () => { dogPhoto = img; coat = coatFrom(img); renderHero(); };
+    img.onerror = () => { dogPhoto = null; coat = COAT_DEFAULT; renderHero(); };
+    img.src = src;
+  }
+  function showPhotoErr(msg) { $photoErr.textContent = msg; $photoErr.hidden = !msg; }
+
+  {
+    const p = loadProfile();
+    if (typeof p.name === 'string') { $name.value = p.name.slice(0, 10); dogName = $name.value.trim() || 'ワンコ'; }
+    // only accept the small JPEG we wrote ourselves
+    usePhoto(typeof p.photo === 'string' && p.photo.startsWith('data:image/jpeg;base64,') ? p.photo : null);
+  }
+  $name.addEventListener('input', () => {
+    const v = $name.value.trim().slice(0, 10);
+    dogName = v || 'ワンコ';
+    saveProfile({ name: v });
+  });
+
+  // crop: pick where the face sits inside the circle
+  const cropOv = document.getElementById('cropOv');
+  const cropCv = document.getElementById('cropCv');
+  const cg = cropCv.getContext('2d');
+  const $zoom = document.getElementById('zoom');
+  const CROP = 480, HOLE = 200;   // crop canvas size and circle radius (canvas px)
+  let crop = null;                // {img, url, base, zoom, x, y}
+
+  document.getElementById('photoBtn').addEventListener('click', () => { showPhotoErr(''); photoInput.click(); });
+  photoInput.addEventListener('change', () => {
+    const f = photoInput.files && photoInput.files[0];
+    photoInput.value = '';
+    if (!f) return;
+    if (!/^image\//.test(f.type)) return showPhotoErr('画像ファイルを選んでください。');
+    if (f.size > 30 * 1024 * 1024) return showPhotoErr('写真が大きすぎます。30MBまでの写真を選んでください。');
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      crop = { img, url, base: HOLE * 2 / Math.min(img.naturalWidth, img.naturalHeight), zoom: 1, x: 0, y: 0 };
+      $zoom.value = '1';
+      cropOv.hidden = false;
+      drawCrop();
+      document.getElementById('cropOk').focus();
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); showPhotoErr('この写真は読み込めませんでした。JPEG か PNG の写真で試してください。'); };
+    img.src = url;
+  });
+  function cropRect() {
+    const s = crop.base * crop.zoom, w = crop.img.naturalWidth * s, h = crop.img.naturalHeight * s;
+    const mx = Math.max(0, w / 2 - HOLE), my = Math.max(0, h / 2 - HOLE);   // keep the circle covered
+    crop.x = Math.max(-mx, Math.min(mx, crop.x));
+    crop.y = Math.max(-my, Math.min(my, crop.y));
+    return { x: CROP / 2 - w / 2 + crop.x, y: CROP / 2 - h / 2 + crop.y, w, h };
+  }
+  function drawCrop() {
+    const r = cropRect();
+    cg.clearRect(0, 0, CROP, CROP);
+    cg.drawImage(crop.img, r.x, r.y, r.w, r.h);
+    cg.fillStyle = 'rgba(17,17,17,.62)';
+    cg.beginPath(); cg.rect(0, 0, CROP, CROP); cg.arc(CROP / 2, CROP / 2, HOLE, 0, Math.PI * 2, true); cg.fill();
+    cg.strokeStyle = '#f2c230'; cg.lineWidth = 5;
+    cg.beginPath(); cg.arc(CROP / 2, CROP / 2, HOLE, 0, Math.PI * 2); cg.stroke();
+  }
+  function setZoom(z) { crop.zoom = Math.max(1, Math.min(4, z)); $zoom.value = String(crop.zoom); drawCrop(); }
+  let drag = null;
+  cropCv.addEventListener('pointerdown', e => {
+    if (!crop) return;
+    drag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+    try { cropCv.setPointerCapture(e.pointerId); } catch (err) {}
+  });
+  cropCv.addEventListener('pointermove', e => {
+    if (!drag || e.pointerId !== drag.id) return;
+    const k = CROP / cropCv.getBoundingClientRect().width;
+    crop.x += (e.clientX - drag.x) * k; crop.y += (e.clientY - drag.y) * k;
+    drag.x = e.clientX; drag.y = e.clientY;
+    drawCrop();
+  });
+  const endDrag = () => { drag = null; };
+  cropCv.addEventListener('pointerup', endDrag);
+  cropCv.addEventListener('pointercancel', endDrag);
+  cropCv.addEventListener('wheel', e => { if (!crop) return; e.preventDefault(); setZoom(crop.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08)); }, { passive: false });
+  $zoom.addEventListener('input', () => { if (crop) setZoom(parseFloat($zoom.value)); });
+  function closeCrop() { if (crop) URL.revokeObjectURL(crop.url); crop = null; drag = null; cropOv.hidden = true; }
+  document.getElementById('cropCancel').addEventListener('click', closeCrop);
+  document.getElementById('cropOk').addEventListener('click', () => {
+    const OUT = 160, k = OUT / (HOLE * 2), r = cropRect();
+    const oc = document.createElement('canvas');
+    oc.width = oc.height = OUT;
+    oc.getContext('2d').drawImage(crop.img, (r.x - (CROP / 2 - HOLE)) * k, (r.y - (CROP / 2 - HOLE)) * k, r.w * k, r.h * k);
+    const data = oc.toDataURL('image/jpeg', 0.88);
+    closeCrop();
+    usePhoto(data);
+    if (!saveProfile({ photo: data })) showPhotoErr('写真を保存できませんでした。今回はこの写真で遊べますが、次に開いたときは元に戻ります。');
+  });
+  photoClear.addEventListener('click', () => { saveProfile({ photo: null }); usePhoto(null); showPhotoErr(''); });
 
   // ---------- sound ----------
   let actx = null;
@@ -664,6 +854,7 @@
   cvs.addEventListener('contextmenu', e => e.preventDefault());
 
   addEventListener('keydown', e => {
+    if (e.target instanceof HTMLInputElement) return; // typing the dog's name, moving the zoom slider
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === 'p' || k === 'Escape') {
       if (phase === 'play') pause(); else if (phase === 'paused') resume();
