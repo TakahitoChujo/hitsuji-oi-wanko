@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>ひつじ追いワンコ</title>
+<meta name="description" content="犬を操って、牧場の羊12頭を小屋に追い込むブラウザゲーム。">
+<meta name="theme-color" content="#24331f">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="hud">
+    <div class="brand">ひつじ追い<span>ワンコ</span></div>
+    <div class="stat"><span class="lbl">小屋の中</span><span class="val" id="count">0 / 12</span></div>
+    <div class="stat"><span class="lbl">タイム</span><span class="val" id="time">0:00.0</span></div>
+    <div class="btns">
+      <button class="desk gateBtn" type="button" disabled>ゲート(E)</button>
+      <button id="muteBtn" type="button" aria-pressed="false">音 ON</button>
+      <button id="restartBtn" type="button">やり直す</button>
+    </div>
+  </header>
+  <div class="stage" id="stage">
+    <canvas id="cvs"></canvas>
+    <div class="goal" id="goal" hidden></div>
+
+    <div class="pad" id="pad">
+      <button class="gateBtn" type="button" disabled>ゲート</button>
+      <button id="downBtn" type="button">ふせ</button>
+      <button id="barkBtn" class="primary" type="button">ワン！</button>
+    </div>
+
+    <div class="overlay" id="titleOv">
+      <div class="card">
+        <h1>ひつじ追い<span>ワンコ</span></h1>
+        <p>散らばった12頭の羊を右上の小屋に追い込んで、最後にゲートを閉めたらクリア。ゲートが開いているうちは、羊が外へ出ていくこともあるよ。</p>
+        <dl class="how">
+          <dt>移動</dt><dd><span class="mouse">マウスを動かす／矢印キー・WASD</span><span class="touch">画面のどこかを押して、行きたい方向へスライド</span></dd>
+          <dt>ワン！</dt><dd><span class="mouse">右クリック／スペース</span><span class="touch">ワン！ボタン</span>。羊が一気に走るけど、群れがバラけやすい</dd>
+          <dt>ふせ</dt><dd><span class="mouse">左クリックかShiftを押している間</span><span class="touch">ふせボタンを押している間</span>。にらみをきかせて、羊を落ち着かせたままゆっくり押せる</dd>
+          <dt>ゲート</dt><dd>入口のそばで<span class="mouse">Eキー</span><span class="touch">ゲートボタン</span></dd>
+        </dl>
+        <button id="startBtn" class="primary" type="button">スタート</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="winOv" hidden>
+      <div class="card">
+        <h2>全頭<span>そろった！</span></h2>
+        <div class="result">
+          タイム <b id="winTime">0:00.0</b><br>
+          ベスト <span id="bestTime">—</span><br>
+          <span class="rank" id="rank">見習いワンコ</span>
+        </div>
+        <button id="againBtn" class="primary" type="button">もう一回</button>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="game.js"></script>
+</body>
+</html>
