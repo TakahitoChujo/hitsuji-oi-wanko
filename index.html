@@ -13,7 +13,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.3.0">
+<link rel="stylesheet" href="style.css?v=0.3.1">
 </head>
 <body>
 <div class="app">
@@ -82,10 +82,10 @@
     <div class="overlay" id="cropOv" hidden>
       <div class="card">
         <h2>顔を<span>まるに合わせよう</span></h2>
-        <canvas id="cropCv" width="480" height="480" aria-label="写真の位置合わせ"></canvas>
+        <canvas id="cropCv" width="480" height="480" tabindex="0" role="img" aria-label="写真の位置合わせ。矢印キーで写真を動かし、プラスとマイナスで拡大縮小します"></canvas>
         <label class="hero-lbl" for="zoom">大きさ</label>
         <input id="zoom" type="range" min="1" max="4" step="0.01" value="1">
-        <p class="note">写真をドラッグして位置を、スライダーで大きさを調整できます。</p>
+        <p class="note">写真をドラッグして位置を、スライダーで大きさを調整できます。<span class="kbd-hint">矢印キーで移動、＋／−で拡大縮小、Esc でやめる。</span></p>
         <div class="menu two">
           <button id="cropCancel" type="button">やめる</button>
           <button id="cropOk" class="primary" type="button">この子に決定</button>
@@ -107,6 +107,6 @@
     </div>
   </div>
 </div>
-<script src="game.js?v=0.3.0"></script>
+<script src="game.js?v=0.3.1"></script>
 </body>
 </html>

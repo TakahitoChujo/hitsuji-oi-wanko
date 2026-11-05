@@ -74,6 +74,7 @@ body { margin: 0; font-size: 14px; }
     border-radius: 14px; background: #111; touch-action: none; cursor: grab;
   }
   #cropCv:active { cursor: grabbing; }
+  #cropCv:focus-visible { outline: 3px solid var(--gorse); outline-offset: 3px; }
   #zoom { width: 100%; accent-color: var(--gorse); }
   #winAvatar { width: 96px; height: 96px; justify-self: center; border-radius: 50%; }
   @media (pointer: coarse) { .card .kbd-hint { display: none; } }

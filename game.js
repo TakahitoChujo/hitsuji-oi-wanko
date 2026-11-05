@@ -366,7 +366,7 @@
     document.getElementById('winTime').textContent = fmt(elapsed);
     document.getElementById('bestTime').textContent = fmt(best);
     const rank = elapsed < 50 ? 'チャンピオン牧羊犬' : elapsed < 90 ? '一人前の牧羊犬' : '見習いワンコ';
-    document.getElementById('rank').textContent = dogName + 'は' + rank + '！';
+    document.getElementById('rank').textContent = dogName ? dogName + 'は' + rank + '！' : rank;
     $goal.hidden = true;
     for (const b of gateBtns) b.disabled = true;
     if (!reduceMotion) confetti();
@@ -593,7 +593,7 @@
 
   // ---------- hero: the player's own dog (photo never leaves the device) ----------
   const COAT_DEFAULT = { main: '#c8783a', dark: '#9c5726', light: '#d98e4f', ear: '#a8602b' };
-  let coat = COAT_DEFAULT, dogPhoto = null, dogName = 'ワンコ';
+  let coat = COAT_DEFAULT, dogPhoto = null, dogName = '';   // '' = the player didn't name the dog
   const $name = document.getElementById('dogName');
   const $photoErr = document.getElementById('photoErr');
   const photoInput = document.getElementById('photoInput');
@@ -675,26 +675,26 @@
     renderAvatar(document.getElementById('winAvatar'));
     photoClear.hidden = !dogPhoto;
   }
+  let photoGen = 0;   // only the latest usePhoto() call may land; a slow earlier decode is dropped
   function usePhoto(src) {
+    const gen = ++photoGen;
     if (!src) { dogPhoto = null; coat = COAT_DEFAULT; renderHero(); return; }
     const img = new Image();
-    img.onload = () => { dogPhoto = img; coat = coatFrom(img); renderHero(); };
-    img.onerror = () => { dogPhoto = null; coat = COAT_DEFAULT; renderHero(); };
+    img.onload = () => { if (gen !== photoGen) return; dogPhoto = img; coat = coatFrom(img); renderHero(); };
+    img.onerror = () => { if (gen !== photoGen) return; dogPhoto = null; coat = COAT_DEFAULT; renderHero(); };
     img.src = src;
   }
   function showPhotoErr(msg) { $photoErr.textContent = msg; $photoErr.hidden = !msg; }
 
   {
     const p = loadProfile();
-    if (typeof p.name === 'string') { $name.value = p.name.slice(0, 10); dogName = $name.value.trim() || 'ワンコ'; }
+    if (typeof p.name === 'string') { $name.value = p.name.slice(0, 10); dogName = $name.value.trim(); }
     // only accept the small JPEG we wrote ourselves
     usePhoto(typeof p.photo === 'string' && p.photo.startsWith('data:image/jpeg;base64,') ? p.photo : null);
   }
-  $name.addEventListener('input', () => {
-    const v = $name.value.trim().slice(0, 10);
-    dogName = v || 'ワンコ';
-    saveProfile({ name: v });
-  });
+  $name.addEventListener('input', () => { dogName = $name.value.trim().slice(0, 10); });
+  // persist once editing ends (blur / Enter), not per keystroke: the record also holds the photo
+  $name.addEventListener('change', () => saveProfile({ name: dogName }));
 
   // crop: pick where the face sits inside the circle
   const cropOv = document.getElementById('cropOv');
@@ -702,32 +702,52 @@
   const cg = cropCv.getContext('2d');
   const $zoom = document.getElementById('zoom');
   const CROP = 480, HOLE = 200;   // crop canvas size and circle radius (canvas px)
-  let crop = null;                // {img, url, base, zoom, x, y}
+  const SRC_MAX = 1280;           // longest side kept from the original photo while cropping
+  let crop = null;                // {img: downscaled canvas, base, zoom, x, y}
+  let pickGen = 0;                // a slow decode of an earlier pick must not replace a newer one
 
   document.getElementById('photoBtn').addEventListener('click', () => { showPhotoErr(''); photoInput.click(); });
   photoInput.addEventListener('change', () => {
     const f = photoInput.files && photoInput.files[0];
     photoInput.value = '';
     if (!f) return;
-    if (!/^image\//.test(f.type)) return showPhotoErr('画像ファイルを選んでください。');
+    // some browsers report HEIC and camera formats with an empty type; let the decoder decide
+    if (f.type && !/^image\//.test(f.type)) return showPhotoErr('画像ファイルを選んでください。');
     if (f.size > 30 * 1024 * 1024) return showPhotoErr('写真が大きすぎます。30MBまでの写真を選んでください。');
+    const gen = ++pickGen;
     const url = URL.createObjectURL(f);
     const img = new Image();
     img.onload = () => {
-      crop = { img, url, base: HOLE * 2 / Math.min(img.naturalWidth, img.naturalHeight), zoom: 1, x: 0, y: 0 };
+      // shrink once so dragging doesn't resample a 12-48 MP photo on every move
+      const k = Math.min(1, SRC_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+      const src = document.createElement('canvas');
+      src.width = Math.max(1, Math.round(img.naturalWidth * k));
+      src.height = Math.max(1, Math.round(img.naturalHeight * k));
+      src.getContext('2d').drawImage(img, 0, 0, src.width, src.height);
+      URL.revokeObjectURL(url);
+      if (gen !== pickGen) return;
+      crop = { img: src, base: HOLE * 2 / Math.min(src.width, src.height), zoom: 1, x: 0, y: 0 };
       $zoom.value = '1';
       cropOv.hidden = false;
       drawCrop();
-      document.getElementById('cropOk').focus();
+      cropCv.focus();
     };
-    img.onerror = () => { URL.revokeObjectURL(url); showPhotoErr('この写真は読み込めませんでした。JPEG か PNG の写真で試してください。'); };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      if (gen !== pickGen) return;
+      showPhotoErr('この写真は読み込めませんでした。JPEG か PNG の写真で試してください。');
+    };
     img.src = url;
   });
-  function cropRect() {
-    const s = crop.base * crop.zoom, w = crop.img.naturalWidth * s, h = crop.img.naturalHeight * s;
-    const mx = Math.max(0, w / 2 - HOLE), my = Math.max(0, h / 2 - HOLE);   // keep the circle covered
+  function cropSize() { const s = crop.base * crop.zoom; return { w: crop.img.width * s, h: crop.img.height * s }; }
+  // keep the circle fully covered by the photo; call after any move or zoom
+  function clampCrop() {
+    const { w, h } = cropSize(), mx = Math.max(0, w / 2 - HOLE), my = Math.max(0, h / 2 - HOLE);
     crop.x = Math.max(-mx, Math.min(mx, crop.x));
     crop.y = Math.max(-my, Math.min(my, crop.y));
+  }
+  function cropRect() {
+    const { w, h } = cropSize();
     return { x: CROP / 2 - w / 2 + crop.x, y: CROP / 2 - h / 2 + crop.y, w, h };
   }
   function drawCrop() {
@@ -739,7 +759,8 @@
     cg.strokeStyle = '#f2c230'; cg.lineWidth = 5;
     cg.beginPath(); cg.arc(CROP / 2, CROP / 2, HOLE, 0, Math.PI * 2); cg.stroke();
   }
-  function setZoom(z) { crop.zoom = Math.max(1, Math.min(4, z)); $zoom.value = String(crop.zoom); drawCrop(); }
+  function moveCrop(dx, dy) { crop.x += dx; crop.y += dy; clampCrop(); drawCrop(); }
+  function setZoom(z) { crop.zoom = Math.max(1, Math.min(4, z)); $zoom.value = String(crop.zoom); clampCrop(); drawCrop(); }
   let drag = null;
   cropCv.addEventListener('pointerdown', e => {
     if (!crop) return;
@@ -749,16 +770,27 @@
   cropCv.addEventListener('pointermove', e => {
     if (!drag || e.pointerId !== drag.id) return;
     const k = CROP / cropCv.getBoundingClientRect().width;
-    crop.x += (e.clientX - drag.x) * k; crop.y += (e.clientY - drag.y) * k;
+    moveCrop((e.clientX - drag.x) * k, (e.clientY - drag.y) * k);
     drag.x = e.clientX; drag.y = e.clientY;
-    drawCrop();
   });
   const endDrag = () => { drag = null; };
   cropCv.addEventListener('pointerup', endDrag);
   cropCv.addEventListener('pointercancel', endDrag);
   cropCv.addEventListener('wheel', e => { if (!crop) return; e.preventDefault(); setZoom(crop.zoom * (e.deltaY < 0 ? 1.08 : 1 / 1.08)); }, { passive: false });
+  cropCv.addEventListener('keydown', e => {
+    if (!crop) return;
+    const step = e.shiftKey ? 40 : 10;
+    const mv = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] }[e.key];
+    if (mv) { e.preventDefault(); moveCrop(...mv); }       // arrows move the photo, same as dragging it
+    else if (e.key === '+' || e.key === '=') { e.preventDefault(); setZoom(crop.zoom * 1.1); }
+    else if (e.key === '-') { e.preventDefault(); setZoom(crop.zoom / 1.1); }
+  });
   $zoom.addEventListener('input', () => { if (crop) setZoom(parseFloat($zoom.value)); });
-  function closeCrop() { if (crop) URL.revokeObjectURL(crop.url); crop = null; drag = null; cropOv.hidden = true; }
+  function closeCrop() {
+    const wasOpen = !cropOv.hidden;
+    crop = null; drag = null; cropOv.hidden = true;
+    if (wasOpen) document.getElementById('photoBtn').focus();
+  }
   document.getElementById('cropCancel').addEventListener('click', closeCrop);
   document.getElementById('cropOk').addEventListener('click', () => {
     const OUT = 160, k = OUT / (HOLE * 2), r = cropRect();
@@ -854,7 +886,8 @@
   cvs.addEventListener('contextmenu', e => e.preventDefault());
 
   addEventListener('keydown', e => {
-    if (e.target instanceof HTMLInputElement) return; // typing the dog's name, moving the zoom slider
+    if (!cropOv.hidden) { if (e.key === 'Escape') closeCrop(); return; }
+    if (e.target instanceof HTMLInputElement) return; // typing the dog's name
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
     if (k === 'p' || k === 'Escape') {
       if (phase === 'play') pause(); else if (phase === 'paused') resume();
