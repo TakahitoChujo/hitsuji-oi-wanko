@@ -922,11 +922,20 @@
   const photoInput = document.getElementById('photoInput');
   const photoClear = document.getElementById('photoClear');
 
+  // The dog (name, photo, look) is shared by every うちの子ワークス game on this site, so it lives under a
+  // series-wide key; this game's own progress stays under hitsuji-*. Older versions saved it as hitsuji-dog.
+  const PROFILE_KEY = 'uchinoko-dog';
+  try {
+    if (localStorage.getItem(PROFILE_KEY) === null && localStorage.getItem('hitsuji-dog') !== null) {
+      localStorage.setItem(PROFILE_KEY, localStorage.getItem('hitsuji-dog'));
+      localStorage.removeItem('hitsuji-dog');
+    }
+  } catch (e) {}
   function loadProfile() {
-    try { const p = JSON.parse(localStorage.getItem('hitsuji-dog')); return p && typeof p === 'object' ? p : {}; } catch (e) { return {}; }
+    try { const p = JSON.parse(localStorage.getItem(PROFILE_KEY)); return p && typeof p === 'object' ? p : {}; } catch (e) { return {}; }
   }
   function saveProfile(patch) {
-    try { localStorage.setItem('hitsuji-dog', JSON.stringify(Object.assign(loadProfile(), patch))); return true; } catch (e) { return false; }
+    try { localStorage.setItem(PROFILE_KEY, JSON.stringify(Object.assign(loadProfile(), patch))); return true; } catch (e) { return false; }
   }
 
   function rgbToHsl(r, g, b) {
@@ -1245,9 +1254,10 @@
   });
 
   // ---------- share: a result card the player sends themselves (nothing is uploaded by the game) ----------
+  // written as the owner's own brag ("Kuro became a sheepdog!"), with the game's unique tag and the series tag
   function shareText(r) {
-    return (r.name ? r.name + 'は' : '') + r.rank + '！ ひつじ追いワンコ ステージ' + (r.stage + 1) + '「' + STAGES[r.stage].name + '」を'
-      + fmt(r.time) + 'でクリア ' + starText(r.stars) + ' #ひつじ追いワンコ';
+    return (r.name ? r.name : 'うちの子') + '、牧羊犬になりました！ ' + r.rank + 'に認定 ' + starText(r.stars)
+      + '（ステージ' + (r.stage + 1) + '「' + STAGES[r.stage].name + '」' + fmt(r.time) + '） #うちの子牧羊犬 #うちの子ワークス';
   }
   function fitFont(g, text, maxW, size, face) {
     let s = size;
@@ -1285,21 +1295,24 @@
       g.restore();
     }
     g.textAlign = 'center'; g.textBaseline = 'alphabetic';
-    const headline = (r.name ? r.name + 'は' : '') + r.rank + '！';
     // the rounded body face has full kanji coverage (the logo face lacks words like 牧羊犬)
-    g.fillStyle = '#f6f4ee'; fitFont(g, headline, 860, 72, '800 {s}px "M PLUS Rounded 1c", sans-serif');
-    g.fillText(headline, 540, 560);
-    g.fillStyle = '#f2c230'; g.font = '110px "Hiragino Sans", "Yu Gothic", sans-serif';
-    g.fillText(starText(r.stars), 540, 690);
-    const stageLine = 'ステージ' + (r.stage + 1) + '「' + STAGES[r.stage].name + '」';
-    g.fillStyle = '#b9c7a8'; fitFont(g, stageLine, 860, 42, '800 {s}px "M PLUS Rounded 1c", sans-serif');
-    g.fillText(stageLine, 540, 775);
-    g.fillStyle = '#f6f4ee'; g.font = '800 64px "M PLUS Rounded 1c", sans-serif';
-    g.fillText('タイム ' + fmt(r.time), 540, 860);
-    g.fillStyle = '#f2c230'; g.font = '44px "Dela Gothic One", sans-serif';
-    g.fillText('ひつじ追いワンコ', 540, 940);
+    const headline = (r.name ? r.name : 'うちの子') + '、牧羊犬になりました！';
+    g.fillStyle = '#f6f4ee'; fitFont(g, headline, 860, 66, '800 {s}px "M PLUS Rounded 1c", sans-serif');
+    g.fillText(headline, 540, 545);
+    const rankLine = r.rank + 'に認定';
+    g.fillStyle = '#f2c230'; fitFont(g, rankLine, 860, 46, '800 {s}px "M PLUS Rounded 1c", sans-serif');
+    g.fillText(rankLine, 540, 612);
+    g.font = '96px "Hiragino Sans", "Yu Gothic", sans-serif';
+    g.fillText(starText(r.stars), 540, 718);
+    const stageLine = 'ステージ' + (r.stage + 1) + '「' + STAGES[r.stage].name + '」　タイム ' + fmt(r.time);
+    g.fillStyle = '#b9c7a8'; fitFont(g, stageLine, 860, 40, '800 {s}px "M PLUS Rounded 1c", sans-serif');
+    g.fillText(stageLine, 540, 800);
+    g.fillStyle = '#f6f4ee'; g.font = '800 34px "M PLUS Rounded 1c", sans-serif';
+    g.fillText('#うちの子牧羊犬', 540, 862);
+    g.fillStyle = '#f2c230'; g.font = '800 40px "M PLUS Rounded 1c", sans-serif';
+    g.fillText('うちの子、牧羊犬になる。', 540, 934);
     g.fillStyle = '#b9c7a8'; g.font = '700 24px "M PLUS Rounded 1c", sans-serif';
-    g.fillText(SITE.replace('https://', '').replace(/\/$/, ''), 540, 980);
+    g.fillText('うちの子ワークス　' + SITE.replace('https://', '').replace(/\/$/, ''), 540, 978);
     return new Promise((res, rej) => c.toBlob(b => (b ? res(b) : rej(new Error('toBlob failed'))), 'image/png'));
   }
 
@@ -1322,7 +1335,7 @@
       const blob = cardBlob || await cardPromise;
       if (!blob) return;
       const text = shareText(lastResult);
-      const file = new File([blob], 'hitsuji-oi-wanko.png', { type: 'image/png' });
+      const file = new File([blob], 'uchinoko-sheepdog.png', { type: 'image/png' });
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try { await navigator.share({ files: [file], text: text + ' ' + SITE }); return; }
         catch (e) { if (e && e.name === 'AbortError') return; }   // other failures fall through to the sheet

@@ -35,7 +35,8 @@ body { margin: 0; font-size: 14px; }
     background: var(--moss);
     border-bottom: 3px solid var(--moss-2);
   }
-  .brand { font-family: var(--font-display); font-size: 1.15rem; letter-spacing: .02em; margin-right: auto; }
+  /* the title has kanji (牧羊犬) the display face lacks, so titles use the heavy rounded body face */
+  .brand { font-weight: 800; font-size: 1.1rem; letter-spacing: .02em; margin-right: auto; }
   .brand span { color: var(--gorse); }
   .stat { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
   .stat .lbl { font-size: .72rem; color: var(--muted); letter-spacing: .08em; }
@@ -115,7 +116,9 @@ body { margin: 0; font-size: 14px; }
   .card .all-clear { text-align: center; color: var(--gorse); font-weight: 800; }
 
   /* title */
-  .card .tagline { font-weight: 800; color: var(--wool); font-size: 1.1rem; margin-top: -6px; }
+  .card .series { font-weight: 800; font-size: .78rem; letter-spacing: .1em; color: var(--gorse); margin-bottom: -8px; }
+  /* two fixed lines: 「うちの子、」/「牧羊犬になる。」 never breaks inside 牧羊犬 */
+  #titleOv h1 span { display: block; }
   .how-wrap summary { cursor: pointer; font-weight: 800; color: var(--gorse); padding-block: 4px; }
   .how-wrap summary:focus-visible { outline: 3px solid var(--gorse); outline-offset: 2px; border-radius: 6px; }
   .how-wrap[open] summary { margin-bottom: 8px; }
@@ -196,7 +199,7 @@ body { margin: 0; font-size: 14px; }
     box-shadow: 0 18px 40px rgba(0,0,0,.35);
   }
   .card h1, .card h2 { margin: 0; font-family: var(--font-display); font-weight: 400; line-height: 1.2; text-wrap: balance; }
-  .card h1 { font-size: 2rem; }
+  .card h1 { font-family: var(--font-body); font-weight: 800; font-size: 2rem; letter-spacing: -.01em; }
   .card h1 span, .card h2 span { color: var(--gorse); }
   .card h2 { font-size: 1.6rem; }
   .card p { margin: 0; line-height: 1.7; color: var(--muted); }

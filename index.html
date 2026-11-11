@@ -5,33 +5,33 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <meta name="referrer" content="no-referrer">
-<title>ひつじ追いワンコ</title>
-<meta name="description" content="うちの子が、牧羊犬になる。犬を操って羊を小屋に追い込むブラウザゲーム。自分の犬の写真で主人公になれます。">
+<title>うちの子、牧羊犬になる。｜うちの子ワークス</title>
+<meta name="description" content="愛犬の写真で、うちの子が主人公に。犬を操って羊を小屋に追い込むブラウザゲーム。うちの子ワークス第1弾。">
 <meta name="theme-color" content="#24331f">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
 <!-- link previews (LINE, X, Slack, ...) -->
 <meta property="og:type" content="website">
-<meta property="og:site_name" content="ひつじ追いワンコ">
-<meta property="og:title" content="ひつじ追いワンコ｜うちの子が、牧羊犬になる。">
-<meta property="og:description" content="犬を操って羊を小屋に追い込むブラウザゲーム。自分の犬の写真で主人公になれます。インストール不要、スマホでも遊べます。">
+<meta property="og:site_name" content="うちの子ワークス">
+<meta property="og:title" content="うちの子、牧羊犬になる。｜うちの子ワークス">
+<meta property="og:description" content="愛犬の写真で、うちの子が主人公に。犬を操って羊を小屋に追い込むブラウザゲーム。インストール不要、スマホでも無料で遊べます。">
 <meta property="og:url" content="https://takahitochujo.github.io/hitsuji-oi-wanko/">
 <meta property="og:image" content="https://takahitochujo.github.io/hitsuji-oi-wanko/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="牧場で犬が羊を小屋へ追い込んでいるイラストと、ひつじ追いワンコのロゴ">
+<meta property="og:image:alt" content="牧場で犬が羊を小屋へ追い込んでいるイラストと、「うちの子、牧羊犬になる。」のタイトル">
 <meta property="og:locale" content="ja_JP">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.6.0">
+<link rel="stylesheet" href="style.css?v=0.6.1">
 </head>
 <body>
 <div class="app">
   <header class="hud">
-    <div class="brand">ひつじ追い<span>ワンコ</span></div>
+    <div class="brand">うちの子、<span>牧羊犬になる。</span></div>
     <div class="stat"><span class="lbl">小屋の中</span><span class="val" id="count">0 / 6</span></div>
     <div class="stat"><span class="lbl">タイム</span><span class="val" id="time">0:00.0</span></div>
     <div class="btns">
@@ -51,8 +51,8 @@
 
     <div class="overlay" id="titleOv">
       <div class="card">
-        <h1>ひつじ追い<span>ワンコ</span></h1>
-        <p class="tagline">うちの子が、牧羊犬になる。</p>
+        <p class="series">UCHINOKO WORKS／うちの子ワークス</p>
+        <h1>うちの子、<span>牧羊犬になる。</span></h1>
         <p>羊を小屋に追い込んで、最後にゲートを閉めたらクリア。全5ステージ。</p>
         <button id="startBtn" class="primary" type="button">あそぶ</button>
         <section class="hero" aria-label="主人公">
@@ -182,7 +182,7 @@
         <div class="menu two">
           <a class="btn" id="shareX" target="_blank" rel="noopener noreferrer">X でポスト</a>
           <a class="btn" id="shareLine" target="_blank" rel="noopener noreferrer">LINE で送る</a>
-          <a class="btn" id="shareSave" download="hitsuji-oi-wanko.png">画像を保存</a>
+          <a class="btn" id="shareSave" download="uchinoko-sheepdog.png">画像を保存</a>
           <button id="shareCopy" type="button">文章をコピー</button>
         </div>
         <label class="share-text" id="shareTextWrap" hidden>
@@ -194,6 +194,6 @@
     </div>
   </div>
 </div>
-<script src="game.js?v=0.6.0"></script>
+<script src="game.js?v=0.6.1"></script>
 </body>
 </html>
