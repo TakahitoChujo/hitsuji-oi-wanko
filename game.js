@@ -16,6 +16,8 @@
   const SITE = 'https://takahitochujo.github.io/hitsuji-oi-wanko/';
 
   const DOG_R = 12;
+  // touch stick: full speed at JOY_FULL px of thumb travel; past JOY_R the base trails the thumb
+  const JOY_R = 50, JOY_FULL = 40;
   const FLEE_R = 150, BARK_R = 230, EYE_R = 210, GATE_REACH = 95;
   let W = 960, H = 600, scale = 1, ox = 0, oy = 0, dpr = 1;
   let pen, fences, trees, walls, muds, bridge, grass;
@@ -406,12 +408,12 @@
       const l = Math.hypot(kx, ky); desX = kx / l * MAXD; desY = ky / l * MAXD; pointer = null;
     } else if (joy) {
       const jx = joy.x - joy.sx, jy = joy.y - joy.sy, jl = Math.hypot(jx, jy);
-      if (jl > 6) { const k = Math.min(1, jl / 60); desX = jx / jl * k * MAXD; desY = jy / jl * k * MAXD; }
+      if (jl > 6) { const k = Math.min(1, jl / JOY_FULL); desX = jx / jl * k * MAXD; desY = jy / jl * k * MAXD; }
     } else if (pointer) {
       const dx = pointer.x - dog.x, dy = pointer.y - dog.y, d = Math.hypot(dx, dy);
       if (d > 4) { const sp = Math.min(MAXD, d * 5); desX = dx / d * sp; desY = dy / d * sp; }
     }
-    const lk = Math.min(1, dt * 10);
+    const lk = Math.min(1, dt * 16);   // reaches full speed in ~0.15 s: quick to answer the thumb, still smooth
     dog.vx += (desX - dog.vx) * lk; dog.vy += (desY - dog.vy) * lk;
     dog.x += dog.vx * dt; dog.y += dog.vy * dt;
     collide(dog, DOG_R);
@@ -755,9 +757,9 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const bx = joy.sx - r.left, by = joy.sy - r.top;
       let jx = joy.x - joy.sx, jy = joy.y - joy.sy;
-      const jl = Math.hypot(jx, jy); if (jl > 60) { jx *= 60 / jl; jy *= 60 / jl; }
+      const jl = Math.hypot(jx, jy); if (jl > JOY_R) { jx *= JOY_R / jl; jy *= JOY_R / jl; }
       ctx.fillStyle = 'rgba(36,51,31,.25)'; ctx.strokeStyle = 'rgba(246,244,238,.6)'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(bx, by, 60, 0, 6.28); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(bx, by, JOY_R, 0, 6.28); ctx.fill(); ctx.stroke();
       ctx.fillStyle = 'rgba(246,244,238,.85)';
       ctx.beginPath(); ctx.arc(bx + jx, by + jy, 24, 0, 6.28); ctx.fill();
     }
@@ -1507,7 +1509,12 @@
   }
   cvs.addEventListener('pointermove', e => {
     if (e.pointerType === 'mouse') pointer = toWorld(e);
-    else if (joy && e.pointerId === joy.id) { joy.x = e.clientX; joy.y = e.clientY; }
+    else if (joy && e.pointerId === joy.id) {
+      joy.x = e.clientX; joy.y = e.clientY;
+      // a floating stick: the base trails a thumb that goes past the rim, so reversing direction is instant
+      const dx = joy.x - joy.sx, dy = joy.y - joy.sy, d = Math.hypot(dx, dy);
+      if (d > JOY_R) { joy.sx = joy.x - dx / d * JOY_R; joy.sy = joy.y - dy / d * JOY_R; }
+    }
   });
   cvs.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') {
