@@ -26,7 +26,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.5.1">
+<link rel="stylesheet" href="style.css?v=0.6.0">
 </head>
 <body>
 <div class="app">
@@ -62,6 +62,7 @@
             <input id="dogName" type="text" maxlength="10" placeholder="ワンコ" autocomplete="off" enterkeyhint="done">
             <div class="hero-btns">
               <button id="photoBtn" type="button">うちの子の写真を使う</button>
+              <button id="lookBtn" type="button">見た目を整える</button>
               <button id="photoClear" type="button" hidden>写真を外す</button>
             </div>
             <input id="photoInput" type="file" accept="image/*" hidden>
@@ -73,7 +74,7 @@
         <details class="how-wrap" id="howTo">
           <summary>操作方法</summary>
           <dl class="how">
-            <dt>移動</dt><dd><span class="mouse">マウスを動かす／矢印キー・WASD</span><span class="touch">画面のどこかを押して、行きたい方向へスライド</span></dd>
+            <dt>移動</dt><dd><span class="mouse">マウスを動かす／矢印キー・WASD</span><span class="touch">画面のどこかを押して、行きたい方向へスライド（少しだけ倒すとゆっくり歩く）</span>。勢いよく突っ込むと羊はパニックに、ゆっくり近づくと落ち着いたまま歩く</dd>
             <dt>ワン！</dt><dd><span class="mouse">右クリック／スペース</span><span class="touch">ワン！ボタン</span>。羊が一気に走るけど、群れがバラけやすい</dd>
             <dt>ふせ</dt><dd><span class="mouse">左クリックかShiftを押している間</span><span class="touch">ふせボタンを押している間</span>。にらみをきかせて、羊を落ち着かせたままゆっくり押せる</dd>
             <dt>ゲート</dt><dd>入口のそばで<span class="mouse">Eキー</span><span class="touch">ゲートボタン</span></dd>
@@ -86,8 +87,9 @@
     <div class="overlay" id="stageOv" hidden>
       <div class="card">
         <h2>ステージを<span>えらぶ</span></h2>
+        <p class="notice" id="stageNotice" hidden>★の条件が変わりました。3つめの★は「お題」を達成するともらえます。各ステージのお題に挑戦してみてね。</p>
         <div class="stages" id="stageList"></div>
-        <p class="note">★1 クリア　★2 目標タイム以内　★3 名人タイム以内</p>
+        <p class="note">★ クリア　★ 目標タイム以内　★ お題を達成（タイムとお題は別々に取れます）</p>
         <button id="stageBack" type="button">もどる</button>
       </div>
     </div>
@@ -96,6 +98,7 @@
       <div class="card">
         <h2>一時<span>停止中</span></h2>
         <p>タイムも羊も止まっています。</p>
+        <p class="pause-mission" id="pauseMission"></p>
         <div class="menu">
           <button id="resumeBtn" class="primary" type="button">つづける</button>
           <button id="muteBtn" type="button" aria-pressed="false">音 ON</button>
@@ -122,6 +125,19 @@
       </div>
     </div>
 
+    <div class="overlay" id="lookOv" hidden>
+      <div class="card look-card">
+        <h2>うちの子<span>メーカー</span></h2>
+        <canvas id="lookCv" width="480" height="200" role="img" aria-label="選んだ見た目のプレビュー"></canvas>
+        <div class="look-rows" id="lookRows"></div>
+        <p class="note">体格は見た目だけで、速さや強さは変わりません。</p>
+        <div class="menu two">
+          <button id="lookCancel" type="button">やめる</button>
+          <button id="lookOk" class="primary" type="button">決定</button>
+        </div>
+      </div>
+    </div>
+
     <div class="overlay" id="winOv" hidden>
       <div class="card">
         <canvas id="winAvatar" width="192" height="192" aria-hidden="true"></canvas>
@@ -131,9 +147,12 @@
         <div class="result">
           タイム <b id="winTime">0:00.0</b><br>
           ベスト <span id="bestTime">—</span><br>
-          <span class="win-goal" id="winGoal"></span><br>
           <span class="rank" id="rank">見習いワンコ</span>
         </div>
+        <ul class="checks">
+          <li id="checkTime"></li>
+          <li id="checkMission"></li>
+        </ul>
         <p class="all-clear" id="allClear" hidden>全ステージクリア！ ★3 を全部そろえられるかな？</p>
         <section class="invite" id="invite" hidden aria-label="うちの子で遊ぶ">
           <p class="invite-title">うちの子で遊んでみる？</p>
@@ -175,6 +194,6 @@
     </div>
   </div>
 </div>
-<script src="game.js?v=0.5.1"></script>
+<script src="game.js?v=0.6.0"></script>
 </body>
 </html>

@@ -45,50 +45,72 @@
     skittish: { r: 10.5, flee: 1.4, fearGain: 2.6, speed: 1.25 }, // panics and bolts away from the flock
   };
   // positions are fractions of the field (u = x / W, v = y / H) so one layout fits landscape and portrait.
-  // par = ★2 time, gold = ★3 time (seconds). Set at roughly 4x / 2x the best time of a herding bot;
-  // provisional until real playtests.
+  // Stars: ★1 clear, +1 for finishing within par seconds, +1 for the stage's mission. Par is roughly 4x the
+  // best time of a herding bot; provisional until real playtests. Missions reward a technique (eye, sparing
+  // barks, using the leader) without ever being required to progress.
   const STAGES = [
-    { name: 'はじめての牧場', flock: { normal: 6 }, par: 55, gold: 30,
+    { name: 'はじめての牧場', flock: { normal: 6 }, par: 55,
       trees: [[.45, .38, 32], [.62, .74, 26, 1]],
+      mission: { text: 'ワン！を使わずにクリア', ok: r => r.barks === 0 },
       hint: 'まずは6頭。羊のうしろに回り込んで、右上の小屋へ押していこう' },
-    { name: '木立の牧場', flock: { normal: 10, leader: 1 }, par: 90, gold: 50,
+    { name: '木立の牧場', flock: { normal: 10, leader: 1 }, par: 90,
       trees: [[.45, .37, 34], [.31, .75, 30], [.68, .72, 26, 1], [.58, .2, 22, 1]],
+      mission: { text: 'リーダー羊を一番最初に小屋に入れる', ok: r => r.firstIn === 'leader' },
       hint: 'ベルをつけたリーダー羊に、みんながついていくよ' },
-    { name: 'ぬかるみ', flock: { normal: 8, black: 2 }, par: 110, gold: 65,
+    { name: 'ぬかるみ', flock: { normal: 8, black: 2 }, par: 110,
       trees: [[.5, .3, 28], [.2, .4, 24, 1]],
       mud: [[.42, .62, 120, 70], [.7, .5, 80, 110]],
+      mission: { text: 'ワン！3回以内でクリア', ok: r => r.barks <= 3 },
       hint: 'ぬかるみでは足が遅くなる。頑固な黒羊は、ワン！で動かそう' },
-    { name: '川と橋', flock: { normal: 8, lamb: 2 }, par: 130, gold: 75,
+    { name: '川と橋', flock: { normal: 8, lamb: 2 }, par: 130,
       trees: [[.3, .35, 28], [.18, .58, 22, 1]],
       river: true,
+      // 8: a deliberate, mostly lying-down approach gets 5-10 panics in bot runs; 3 was out of reach
+      mission: { text: '羊のパニック8回以内でクリア', ok: r => r.panics <= 8 },
       hint: '橋をわたらせよう。子羊はお母さんについていくよ' },
-    { name: '夕暮れの大放牧', flock: { normal: 9, leader: 1, black: 2, lamb: 2, skittish: 2 }, par: 190, gold: 110,
+    { name: '夕暮れの大放牧', flock: { normal: 9, leader: 1, black: 2, lamb: 2, skittish: 2 }, par: 190,
       trees: [[.45, .3, 30], [.3, .8, 28], [.64, .7, 24, 1]],
       mud: [[.5, .55, 90, 60]], dusk: true,
+      mission: { text: '臆病な羊を一度もパニックにさせずにクリア', ok: r => r.skittishPanics === 0 },
       hint: '全員集合！臆病な羊はすぐ逃げるから、ふせでそっと押そう' },
   ];
   const RANKS = { 1: '見習いワンコ', 2: '一人前の牧羊犬', 3: 'チャンピオン牧羊犬' };
   let stageIdx = 0, ST = STAGES[0];
 
+  // per-stage progress: best time, and whether par time / the mission has ever been achieved
   function loadProgress() {
-    const empty = { stars: {}, best: {} };
+    const out = { v: 2, best: {}, time: {}, mission: {}, cleared: {}, notice: false };
     try {
       const p = JSON.parse(localStorage.getItem('hitsuji-progress'));
-      if (!p || typeof p !== 'object') return empty;
-      const out = { stars: {}, best: {} };
+      if (!p || typeof p !== 'object') return out;
       STAGES.forEach((_, i) => {
-        const s = Number(p.stars && p.stars[i]), b = Number(p.best && p.best[i]);
-        if (s >= 1 && s <= 3) out.stars[i] = Math.floor(s);
+        const b = Number(p.best && p.best[i]);
         if (b > 0) out.best[i] = b;
+        if (p.v === 2) {
+          if (p.cleared && p.cleared[i] === true) out.cleared[i] = true;
+          if (p.time && p.time[i] === true) out.time[i] = true;
+          if (p.mission && p.mission[i] === true) out.mission[i] = true;
+        } else {
+          // v0.4-0.5 kept 1-3 time-based stars. ★2 and the old gold ★3 both mean "made par"; the mission is new.
+          const s = Number(p.stars && p.stars[i]);
+          if (s >= 1) out.cleared[i] = true;
+          if (s >= 2) out.time[i] = true;
+          if (s >= 3) out.notice = true;   // their ★3 drops to ★2: explain once on the stage list
+        }
       });
+      if (p.v === 2 && p.notice === true) out.notice = true;
       return out;
-    } catch (e) { return empty; }
+    } catch (e) { return out; }
   }
   let progress = loadProgress();
   function saveProgress() { try { localStorage.setItem('hitsuji-progress', JSON.stringify(progress)); } catch (e) {} }
-  const unlocked = i => i === 0 || (progress.stars[i - 1] || 0) > 0;
-  const starsFor = (i, time) => (time <= STAGES[i].gold ? 3 : time <= STAGES[i].par ? 2 : 1);
+  const savedStars = i => (progress.cleared[i] ? 1 + (progress.time[i] ? 1 : 0) + (progress.mission[i] ? 1 : 0) : 0);
+  const unlocked = i => i === 0 || !!progress.cleared[i - 1];
   const starText = n => '★'.repeat(n) + '☆'.repeat(3 - n);
+
+  // what the player did this run, for the mission and for the "try lying down" tip
+  let run;
+  const newRun = () => ({ barks: 0, panics: 0, skittishPanics: 0, firstIn: null, usedDown: false, panicTimes: [], tipUntil: 0, tipShown: false });
 
   // ---------- world ----------
   function inBox(b, x, y, m = 0) { return x > b.x0 - m && x < b.x1 + m && y > b.y0 - m && y < b.y1 + m; }
@@ -178,6 +200,7 @@
     rings = []; parts = []; pops = [];
     elapsed = 0; barkCd = 0; winDelay = 0; shake = 0;
     gateClosed = false; gateAnim = 0;
+    run = newRun();
     lastHud = ''; lastGoal = '';
     updateHud(0);
     resize();
@@ -298,10 +321,23 @@
   }
 
   // ---------- actions ----------
+  // same effect every time; only the voice and the word vary, so it stays one simple action
+  const BARKS = [
+    { text: 'ワン！', notes: [[520, 230, 0, .12]] },
+    { text: 'ワンワン！', notes: [[520, 230, 0, .12], [600, 270, .13, .12]] },
+    { text: 'ワォン！', notes: [[380, 620, 0, .1], [620, 420, .1, .16]] },
+    { text: 'ワフッ！', notes: [[360, 190, 0, .08]] },
+  ];
+  let lastBark = -1;
   function bark() {
     if (phase !== 'play' || barkCd > 0) return;
     barkCd = 0.7;
-    rings.push({ x: dog.x, y: dog.y, t: 0 });
+    run.barks++;
+    let v = Math.floor(Math.random() * (BARKS.length - 1));
+    if (v >= lastBark) v++;   // never the same variant twice in a row
+    if (lastBark < 0) v = 0;
+    lastBark = v;
+    rings.push({ x: dog.x, y: dog.y, t: 0, text: BARKS[v].text });
     if (!reduceMotion) shake = 0.18;
     for (const s of sheep) {
       const dx = s.x - dog.x, dy = s.y - dog.y, d = Math.hypot(dx, dy) || 1;
@@ -312,7 +348,7 @@
         s.fear = s.type === 'black' ? .8 : 1; s.alarm = 0.7;
       }
     }
-    sfx.bark();
+    sfx.bark(BARKS[v].notes, SIZES[look.size].pitch);
   }
 
   function toggleGate() {
@@ -346,6 +382,7 @@
 
     // dog
     dog.down = downHeld || mouseHeld || !!keys.Shift;
+    if (dog.down) run.usedDown = true;
     const MAXD = (dog.down ? 75 : 250) * (inMud(dog) ? .5 : 1);
     let kx = (keys.ArrowRight || keys.d ? 1 : 0) - (keys.ArrowLeft || keys.a ? 1 : 0);
     let ky = (keys.ArrowDown || keys.s ? 1 : 0) - (keys.ArrowUp || keys.w ? 1 : 0);
@@ -373,6 +410,9 @@
     // sheep
     const pcx = pen.x + pen.w / 2 + 20, pcy = pen.y + pen.h / 2;
     const leader = sheep.find(s => s.type === 'leader');
+    // a dog that walks up calmly moves sheep without panicking them; one that charges in scares them.
+    // Sheep still step away either way: only how fast fear builds depends on the dog's speed.
+    const charge = .3 + .7 * Math.min(1, Math.hypot(dog.vx, dog.vy) / 220);
     for (const s of sheep) {
       const T = s.T;
       let fx = 0, fy = 0;
@@ -387,10 +427,13 @@
       } else if (d < FLEE_R) {
         const k = 1 - d / FLEE_R;
         fx += dx / d * k * 900 * T.flee; fy += dy / d * k * 900 * T.flee;
-        s.fear = Math.min(1, s.fear + k * dt * 4 * T.fearGain);
+        s.fear = Math.min(1, s.fear + k * dt * 4 * T.fearGain * charge);
       }
       s.fear = Math.max(0, s.fear - dt * 0.45);
       s.alarm = Math.max(0, s.alarm - dt);
+      // a panic is fear reaching .9; the same sheep counts again only after it has calmed below .5
+      if (s.fear >= .9 && !s.panicked) { s.panicked = true; onPanic(s); }
+      else if (s.fear < .5) s.panicked = false;
 
       let cx = 0, cy = 0, ax = 0, ay = 0, n = 0;
       for (const o of sheep) {
@@ -451,6 +494,7 @@
       if (now !== s.inside) {
         s.inside = now;
         if (now) {
+          if (!run.firstIn) run.firstIn = s.type;
           pops.push({ x: s.x, y: s.y - 18, text: '+1', color: '#f2c230', life: .9 });
           sparkle(s.x, s.y);
           sfx.baa(s.pitch);
@@ -474,6 +518,15 @@
       winDelay += dt;
       if (winDelay > 0.45) win();
     } else winDelay = 0;
+  }
+
+  function onPanic(s) {
+    run.panics++;
+    if (s.type === 'skittish') run.skittishPanics++;
+    // a player who keeps panicking the flock and has never lain down gets one nudge toward the eye
+    run.panicTimes = run.panicTimes.filter(at => at > elapsed - 8);
+    run.panicTimes.push(elapsed);
+    if (!run.usedDown && !run.tipShown && run.panicTimes.length >= 3) { run.tipShown = true; run.tipUntil = elapsed + 5; }
   }
 
   function dust(x, y, n) {
@@ -514,9 +567,13 @@
       text = 'ゲートが閉まってるよ。開けて残りを入れよう';
     } else if (orientationChanged()) {
       text = '画面の向きが変わったよ。一時停止→「最初からやり直す」で牧場が画面に合います';
-    } else if (elapsed < 3.5) {
+    } else if (run.tipUntil > elapsed) {
+      text = 'ふせ（' + (touch ? 'ふせボタン' : 'Shift か左クリック長押し') + '）でそっと押すと、羊が落ち着くよ';
+    } else if (elapsed < 3) {
       text = 'ステージ' + (stageIdx + 1) + '「' + ST.name + '」';
-    } else if (elapsed < 10) {
+    } else if (elapsed < 7) {
+      text = 'お題：' + ST.mission.text;
+    } else if (elapsed < 12) {
       text = ST.hint;
     } else if (inside > 0 && total - inside <= 3) {
       text = 'あと' + (total - inside) + '頭！ふせでそっと押すと逃げにくい';
@@ -535,11 +592,15 @@
   function win() {
     phase = 'win';
     renderPauseBtn();
-    const stars = starsFor(stageIdx, elapsed);
+    // stars for this run; the stage list keeps the best of every run (time and mission can come from different runs)
+    const timeOk = elapsed <= ST.par, missionOk = ST.mission.ok(run);
+    const stars = 1 + (timeOk ? 1 : 0) + (missionOk ? 1 : 0);
     const prevBest = progress.best[stageIdx];
     const newBest = !(prevBest > 0) || elapsed < prevBest;
     if (newBest) progress.best[stageIdx] = elapsed;
-    progress.stars[stageIdx] = Math.max(progress.stars[stageIdx] || 0, stars);
+    progress.cleared[stageIdx] = true;
+    if (timeOk) progress.time[stageIdx] = true;
+    if (missionOk) progress.mission[stageIdx] = true;
     saveProgress();
     const rank = RANKS[stars];
     lastResult = { stage: stageIdx, time: elapsed, stars, rank, name: dogName };
@@ -550,9 +611,9 @@
     $stars.setAttribute('aria-label', '星' + stars + 'つ');
     document.getElementById('winTime').textContent = fmt(elapsed);
     document.getElementById('bestTime').textContent = fmt(progress.best[stageIdx]) + (newBest ? '（新記録！）' : '');
-    document.getElementById('winGoal').textContent = stars < 3
-      ? '★' + (stars + 1) + 'まであと ' + (elapsed - (stars === 1 ? ST.par : ST.gold)).toFixed(1) + '秒'
-      : '名人タイム達成！';
+    // the only place a missed mission is mentioned: no mid-game "failed" message (design decision 2026-11-12)
+    setCheck('checkTime', timeOk, '目標タイム ' + ST.par + '秒以内');
+    setCheck('checkMission', missionOk, 'お題：' + ST.mission.text);
     document.getElementById('rank').textContent = dogName ? dogName + 'は' + rank + '！' : rank;
     const nextBtn = document.getElementById('nextBtn');
     nextBtn.hidden = stageIdx === STAGES.length - 1;
@@ -570,6 +631,13 @@
       winOv.hidden = false;
       (nextBtn.hidden ? document.getElementById('shareBtn') : nextBtn).focus();
     }, 1100);
+  }
+
+  function setCheck(id, ok, label) {
+    const el = document.getElementById(id);
+    el.textContent = (ok ? '✓ ' : '− ') + label;
+    el.classList.toggle('ok', ok);
+    el.setAttribute('aria-label', label + (ok ? '：達成' : '：まだ'));
   }
 
   // ---------- draw ----------
@@ -640,7 +708,7 @@
     ctx.textAlign = 'center';
     if (rings.length) {
       const r = rings[rings.length - 1];
-      if (r.t < 0.35) outlined('ワン！', dog.x, dog.y - 26 - r.t * 30, 22, '#f2c230');
+      if (r.t < 0.35) outlined(r.text, dog.x, dog.y - 26 - r.t * 30, 22, '#f2c230');
     }
     for (const p of parts) {
       if (p.kind === 'star') {
@@ -730,94 +798,125 @@
     for (const [bx, by, br] of blobs) { ctx.beginPath(); ctx.arc(tr.x + bx * tr.r - 4, tr.y + by * tr.r - 5, br * tr.r * .6, 0, 6.28); ctx.fill(); }
   }
 
-  function drawSheep(s) {
+  function drawSheep(s, g = ctx) {
     const r = s.r, k = r / 11;
     const sp = Math.hypot(s.vx, s.vy);
     const bob = reduceMotion ? 0 : Math.sin(t * 16 + s.phase) * Math.min(1, sp / 80) * 1.5;
     const shiver = s.type === 'skittish' && s.fear > .3 && !reduceMotion ? rand(-1.2, 1.2) : 0;
     const black = s.type === 'black';
-    ctx.save();
-    ctx.translate(s.x + shiver, s.y);
-    ctx.fillStyle = 'rgba(30,45,20,.22)';
-    ctx.beginPath(); ctx.ellipse(2, 5 * k, r * 1.25, r * .85, 0, 0, 6.28); ctx.fill();
-    ctx.translate(0, bob);
-    ctx.rotate(s.ang);
-    ctx.fillStyle = black ? '#1c1917' : '#3a3530';
-    ctx.beginPath(); ctx.ellipse(r * .2, -6 * k, 3 * k, 4.5 * k, -.5, 0, 6.28); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * .2, 6 * k, 3 * k, 4.5 * k, .5, 0, 6.28); ctx.fill();
-    ctx.beginPath(); ctx.ellipse(r * 1.05, 0, 6 * k, 4.8 * k, 0, 0, 6.28); ctx.fill();
+    g.save();
+    g.translate(s.x + shiver, s.y);
+    g.fillStyle = 'rgba(30,45,20,.22)';
+    g.beginPath(); g.ellipse(2, 5 * k, r * 1.25, r * .85, 0, 0, 6.28); g.fill();
+    g.translate(0, bob);
+    g.rotate(s.ang);
+    g.fillStyle = black ? '#1c1917' : '#3a3530';
+    g.beginPath(); g.ellipse(r * .2, -6 * k, 3 * k, 4.5 * k, -.5, 0, 6.28); g.fill();
+    g.beginPath(); g.ellipse(r * .2, 6 * k, 3 * k, 4.5 * k, .5, 0, 6.28); g.fill();
+    g.beginPath(); g.ellipse(r * 1.05, 0, 6 * k, 4.8 * k, 0, 0, 6.28); g.fill();
     const puffs = [[-7, -4, .6], [-7, 4, .6], [-3, 0, .85], [3, -4, .7], [3, 4, .7]];
-    ctx.fillStyle = black ? '#2a2523' : '#d9d4c6';
-    for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px * k + .8, py * k + .8, pr * r, 0, 6.28); ctx.fill(); }
-    ctx.fillStyle = black ? '#4a4441' : s.type === 'skittish' ? '#f1ebe0' : s.inside ? '#fffdf6' : '#f6f4ee';
-    for (const [px, py, pr] of puffs) { ctx.beginPath(); ctx.arc(px * k, py * k, pr * r - .6, 0, 6.28); ctx.fill(); }
+    g.fillStyle = black ? '#2a2523' : '#d9d4c6';
+    for (const [px, py, pr] of puffs) { g.beginPath(); g.arc(px * k + .8, py * k + .8, pr * r, 0, 6.28); g.fill(); }
+    g.fillStyle = black ? '#4a4441' : s.type === 'skittish' ? '#f1ebe0' : s.inside ? '#fffdf6' : '#f6f4ee';
+    for (const [px, py, pr] of puffs) { g.beginPath(); g.arc(px * k, py * k, pr * r - .6, 0, 6.28); g.fill(); }
     if (s.type === 'leader') {
-      ctx.fillStyle = '#c0392b'; ctx.fillRect(r * .5, -r * .55, 2.4, r * 1.1);       // collar
-      ctx.fillStyle = '#f2c230'; ctx.strokeStyle = '#7a5a10'; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.arc(r * .62, 0, 3.4, 0, 6.28); ctx.fill(); ctx.stroke();  // bell
+      g.fillStyle = '#c0392b'; g.fillRect(r * .5, -r * .55, 2.4, r * 1.1);       // collar
+      g.fillStyle = '#f2c230'; g.strokeStyle = '#7a5a10'; g.lineWidth = 1;
+      g.beginPath(); g.arc(r * .62, 0, 3.4, 0, 6.28); g.fill(); g.stroke();  // bell
     }
-    ctx.restore();
+    g.restore();
     if (s.alarm > 0) {
-      ctx.font = '16px "Dela Gothic One", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#e04a2f';
-      ctx.fillText('!', s.x, s.y - 16 - (0.7 - s.alarm) * 12);
+      g.font = '16px "Dela Gothic One", sans-serif';
+      g.textAlign = 'center';
+      g.fillStyle = '#e04a2f';
+      g.fillText('!', s.x, s.y - 16 - (0.7 - s.alarm) * 12);
     }
   }
 
   function drawDog() {
-    const d = dog;
+    paintDog(ctx, dog, { look, coat, photo: dogPhoto, k: SIZES[look.size].k, headR: faceR(), time: t });
+  }
+  // The hero, seen from above, facing d.ang. Shared by the game, the うちの子メーカー preview and the share card.
+  // o: { look, coat, photo (image or null), k (size scale), headR (photo head radius before k), time (seconds) }
+  function paintDog(g, d, o) {
+    const lk = o.look, c = o.coat, k = o.k;
     const sp = Math.hypot(d.vx, d.vy);
-    const gait = reduceMotion ? 0 : Math.sin(t * (d.down ? 10 : 22)) * Math.min(1, sp / 120);
-    const low = d.down ? 0.82 : 1;
-    ctx.save();
-    ctx.translate(d.x, d.y);
-    ctx.fillStyle = 'rgba(30,45,20,.25)';
-    ctx.beginPath(); ctx.ellipse(2, d.down ? 3 : 6, 18, 10, d.ang, 0, 6.28); ctx.fill();
-    ctx.rotate(d.ang);
-    ctx.scale(d.down ? 1.08 : 1, low);
-    ctx.fillStyle = coat.dark;
+    const gait = reduceMotion ? 0 : Math.sin(o.time * (d.down ? 10 : 22)) * Math.min(1, sp / 120);
+    g.save();
+    g.translate(d.x, d.y);
+    g.scale(k, k);
+    g.fillStyle = 'rgba(30,45,20,.25)';
+    g.beginPath(); g.ellipse(2, d.down ? 3 : 6, 18, 10, d.ang, 0, 6.28); g.fill();
+    g.rotate(d.ang);
+    g.scale(d.down ? 1.08 : 1, d.down ? .82 : 1);
+    g.fillStyle = lk.pattern === 'socks' ? c.sub : c.dark;
     for (const [lx, ly, ph] of [[8, -7, 1], [8, 7, -1], [-8, -7, -1], [-8, 7, 1]]) {
-      ctx.beginPath(); ctx.ellipse(lx + gait * 3 * ph, ly * (d.down ? 1.25 : 1), 3.5, 2.6, 0, 0, 6.28); ctx.fill();
+      g.beginPath(); g.ellipse(lx + gait * 3 * ph, ly * (d.down ? 1.25 : 1), 3.5, 2.6, 0, 0, 6.28); g.fill();
     }
-    const wag = reduceMotion || d.down ? 0 : Math.sin(t * 18) * .5;
-    ctx.save(); ctx.translate(-14, 0); ctx.rotate(wag);
-    ctx.strokeStyle = coat.main; ctx.lineWidth = 5; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(-4, 0, 4, -1.2, 3.6); ctx.stroke();
-    ctx.strokeStyle = '#f3e3cc'; ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(-4, 0, 4, 0.5, 2.6); ctx.stroke();
-    ctx.restore();
-    ctx.fillStyle = coat.main;
-    ctx.beginPath(); ctx.ellipse(0, 0, 14, 8.5, 0, 0, 6.28); ctx.fill();
-    ctx.fillStyle = coat.light;
-    ctx.beginPath(); ctx.ellipse(-1, -1.5, 9, 4, 0, 0, 6.28); ctx.fill();
-    if (!dogPhoto) {
-      ctx.fillStyle = coat.main;
-      ctx.beginPath(); ctx.arc(13, 0, 7.5, 0, 6.28); ctx.fill();
-      ctx.fillStyle = coat.ear;
-      ctx.beginPath(); ctx.moveTo(9, -5); ctx.lineTo(13, -11); ctx.lineTo(15, -5); ctx.fill();
-      ctx.beginPath(); ctx.moveTo(9, 5); ctx.lineTo(13, 11); ctx.lineTo(15, 5); ctx.fill();
-      ctx.fillStyle = '#f3e3cc';
-      ctx.beginPath(); ctx.ellipse(18.5, 0, 4.2, 3.6, 0, 0, 6.28); ctx.fill();
-      ctx.fillStyle = '#2b2522';
-      ctx.beginPath(); ctx.arc(22, 0, 1.8, 0, 6.28); ctx.fill();
+    const wag = reduceMotion || d.down ? 0 : Math.sin(o.time * 18) * .5;
+    g.save(); g.translate(-14, 0); g.rotate(wag);
+    g.strokeStyle = g.fillStyle = c.main; g.lineCap = 'round';
+    if (lk.tail === 'curl') {
+      g.lineWidth = 5; g.beginPath(); g.arc(-4, 0, 4, -1.2, 3.6); g.stroke();
+      g.strokeStyle = c.sub; g.lineWidth = 2; g.beginPath(); g.arc(-4, 0, 4, 0.5, 2.6); g.stroke();
+    } else if (lk.tail === 'straight') {
+      g.lineWidth = 3.6; g.beginPath(); g.moveTo(2, 0); g.lineTo(-11, 0); g.stroke();
+    } else if (lk.tail === 'fluffy') {
+      g.beginPath(); g.ellipse(-6, 0, 8, 4.4, 0, 0, 6.28); g.fill();
+      g.fillStyle = c.light; g.beginPath(); g.ellipse(-8, -1, 4.5, 2, 0, 0, 6.28); g.fill();
+    } else {
+      g.beginPath(); g.ellipse(-1, 0, 3.4, 2.8, 0, 0, 6.28); g.fill();
     }
-    ctx.restore();
-    if (dogPhoto) {
-      // the photo head stays upright (a sideways face reads badly) and is drawn big so it's recognisable
-      const hr = faceR() * (d.down ? .85 : 1), reach = 15 + (hr - 13) * .5;
-      const hx = d.x + Math.cos(d.ang) * reach, hy = d.y + Math.sin(d.ang) * reach - (d.down ? 0 : 2);
-      ctx.fillStyle = coat.dark;
-      ctx.beginPath(); ctx.arc(hx, hy, hr + 2, 0, Math.PI * 2); ctx.fill();
-      drawFace(ctx, hx, hy, hr);
+    g.restore();
+    g.fillStyle = lk.pattern === 'saddle' ? c.sub : c.main;
+    g.beginPath(); g.ellipse(0, 0, 14, 8.5, 0, 0, 6.28); g.fill();
+    if (lk.pattern === 'saddle') {
+      g.fillStyle = c.main; g.beginPath(); g.ellipse(-2, 0, 10, 6, 0, 0, 6.28); g.fill();
+    } else if (lk.pattern === 'spots') {
+      g.fillStyle = c.sub;
+      for (const [x, y, r] of [[-6, -3, 3.4], [1, 3.2, 2.8], [-1, -4.4, 2.2], [6, -1.6, 2.4], [-9, 3, 2]]) { g.beginPath(); g.ellipse(x, y, r, r * .8, 0, 0, 6.28); g.fill(); }
+    } else {
+      g.fillStyle = c.light; g.beginPath(); g.ellipse(-1, -1.5, 9, 4, 0, 0, 6.28); g.fill();
+    }
+    if (lk.pattern === 'chest') { g.fillStyle = c.sub; g.beginPath(); g.ellipse(10, 0, 4.6, 6, 0, 0, 6.28); g.fill(); }
+    if (!o.photo) {
+      g.fillStyle = c.main; g.beginPath(); g.arc(13, 0, 7.5, 0, 6.28); g.fill();
+      if (lk.ears === 'up') {
+        g.fillStyle = c.ear;
+        g.beginPath(); g.moveTo(9, -5); g.lineTo(13, -11); g.lineTo(15, -5); g.fill();
+        g.beginPath(); g.moveTo(9, 5); g.lineTo(13, 11); g.lineTo(15, 5); g.fill();
+      } else {
+        g.fillStyle = c.dark;
+        for (const sy of [-1, 1]) { g.beginPath(); g.ellipse(11, sy * 7.5, 4.2, 2.6, sy * .5, 0, 6.28); g.fill(); }
+      }
+      g.fillStyle = lk.pattern === 'solid' ? c.light : c.sub;
+      g.beginPath(); g.ellipse(18.5, 0, 4.2, 3.6, 0, 0, 6.28); g.fill();
+      g.fillStyle = '#2b2522'; g.beginPath(); g.arc(22, 0, 1.8, 0, 6.28); g.fill();
+    }
+    g.restore();
+    if (o.photo) {
+      // the photo head stays upright (a sideways face reads badly); drawn ears peek out around it
+      const hr = o.headR * k * (d.down ? .85 : 1), reach = (15 + (o.headR - 13) * .5) * k;
+      const hx = d.x + Math.cos(d.ang) * reach, hy = d.y + Math.sin(d.ang) * reach - (d.down ? 0 : 2 * k);
+      if (lk.ears === 'up') {
+        g.fillStyle = c.ear;
+        for (const sx of [-1, 1]) {
+          g.beginPath(); g.moveTo(hx + sx * hr * .4, hy - hr * .8); g.lineTo(hx + sx * hr * 1, hy - hr * 1.3); g.lineTo(hx + sx * hr * 1, hy - hr * .3); g.fill();
+        }
+      } else {
+        g.fillStyle = c.dark;
+        for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(hx + sx * hr * .98, hy, hr * .32, hr * .62, sx * .35, 0, 6.28); g.fill(); }
+      }
+      g.fillStyle = c.dark;
+      g.beginPath(); g.arc(hx, hy, hr + 2, 0, Math.PI * 2); g.fill();
+      drawFace(g, hx, hy, hr, o.photo);
     }
   }
   // photo head radius in world units: at least ~13 CSS px on screen, so the face reads on a phone
   function faceR() { return Math.min(22, Math.max(13, 13 / scale)); }
 
   // ---------- hero: the player's own dog (photo never leaves the device) ----------
-  const COAT_DEFAULT = { main: '#c8783a', dark: '#9c5726', light: '#d98e4f', ear: '#a8602b' };
-  let coat = COAT_DEFAULT, dogPhoto = null, dogName = '';   // '' = the player didn't name the dog
+  let dogPhoto = null, dogName = '';   // '' = the player didn't name the dog
   const $name = document.getElementById('dogName');
   const $photoErr = document.getElementById('photoErr');
   const photoInput = document.getElementById('photoInput');
@@ -862,26 +961,66 @@
     const top = bins.reduce((a, b) => (b.w > a.w ? b : a));
     const rgb = top.w > n * .06 ? [top.r / top.w, top.g / top.w, top.b / top.w] : [ar / n, ag / n, ab / n];
     const [h, s, l] = rgbToHsl(...rgb);
-    const L = Math.min(.68, Math.max(.3, l)), S = Math.min(.6, s);
-    const hsl = dl => `hsl(${Math.round(h * 360)} ${Math.round(S * 100)}% ${Math.round(Math.min(.9, Math.max(.12, L + dl)) * 100)}%)`;
-    return { main: hsl(0), dark: hsl(-.14), light: hsl(.08), ear: hsl(-.08) };
+    return palette(h, Math.min(.6, s), Math.min(.68, Math.max(.3, l)));
+  }
+  // one fur colour -> the shades the drawing uses
+  function palette(h, s, l) {
+    const f = dl => `hsl(${Math.round(h * 360)} ${Math.round(s * 100)}% ${Math.round(Math.min(.95, Math.max(.1, l + dl)) * 100)}%)`;
+    return { main: f(0), dark: f(-.14), light: f(.08), ear: f(-.08) };
   }
 
-  function drawFace(g, x, y, r) {
-    if (dogPhoto) {
+  // ---------- うちの子メーカー: the dog's body. Looks only: size never changes speed or reach ----------
+  const MAIN_COLORS = { red: '#c8783a', black: '#3a3532', white: '#eee9df', cream: '#e3cb98', brown: '#8b5a2b', choco: '#5c3b27', gray: '#8f8b86', gold: '#d9a441' };
+  const SUB_COLORS = { white: '#f7f3eb', cream: '#efe0bf', tan: '#d2a46c', brown: '#8b5a2b', gray: '#a39e98', black: '#2b2624' };
+  const LOOK_PARTS = [
+    { key: 'main', label: '毛色', options: [['photo', '写真から'], ['red', '赤（柴）'], ['black', '黒'], ['white', '白'], ['cream', 'クリーム'], ['brown', '茶'], ['choco', 'チョコ'], ['gray', '灰'], ['gold', 'ゴールド']] },
+    { key: 'sub', label: '模様の色', options: [['white', '白'], ['cream', 'クリーム'], ['tan', '薄茶'], ['brown', '茶'], ['gray', '灰'], ['black', '黒']] },
+    { key: 'pattern', label: '模様', options: [['solid', 'なし'], ['chest', '胸が白'], ['socks', 'くつした'], ['spots', 'ぶち'], ['saddle', '背中だけ']] },
+    { key: 'ears', label: '耳', options: [['up', '立ち耳'], ['down', '垂れ耳']] },
+    { key: 'tail', label: 'しっぽ', options: [['curl', '巻き尾'], ['straight', 'まっすぐ'], ['fluffy', 'ふさふさ'], ['short', '短い']] },
+    { key: 'size', label: '体格', options: [['s', '小型'], ['m', '中型'], ['l', '大型']] },
+  ];
+  const SIZES = { s: { k: .85, pitch: 1.25 }, m: { k: 1, pitch: 1 }, l: { k: 1.15, pitch: .8 } };
+  const LOOK_DEFAULT = { main: 'photo', sub: 'cream', pattern: 'chest', ears: 'up', tail: 'curl', size: 'm' };
+  // only values from the option lists survive loading, so a damaged or edited save can't break drawing
+  function cleanLook(raw) {
+    const out = { ...LOOK_DEFAULT };
+    if (raw && typeof raw === 'object') for (const p of LOOK_PARTS) if (p.options.some(([v]) => v === raw[p.key])) out[p.key] = raw[p.key];
+    return out;
+  }
+  let look = { ...LOOK_DEFAULT }, photoCoat = null;
+  function coatFor(lk) {
+    let base = lk.main === 'photo' ? photoCoat : null;   // "写真から" without a photo falls back to the shiba red
+    if (!base) {
+      const n = parseInt((MAIN_COLORS[lk.main] || MAIN_COLORS.red).slice(1), 16);
+      base = palette(...rgbToHsl(n >> 16, (n >> 8) & 255, n & 255));
+    }
+    return { ...base, sub: SUB_COLORS[lk.sub] };
+  }
+  let coat = coatFor(look);
+
+  // front-facing face for the round avatars: the photo, or a drawn face in the chosen colours and ears
+  function drawFace(g, x, y, r, photo = dogPhoto, lk = look, c = coat) {
+    if (photo) {
       g.save();
       g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.clip();
-      g.drawImage(dogPhoto, x - r, y - r, r * 2, r * 2);
+      g.drawImage(photo, x - r, y - r, r * 2, r * 2);
       g.restore();
       return;
     }
-    const c = COAT_DEFAULT;
-    g.fillStyle = c.ear;
-    for (const sx of [-1, 1]) {
-      g.beginPath(); g.moveTo(x + sx * r * .85, y - r * .15); g.lineTo(x + sx * r * .62, y - r * 1.02); g.lineTo(x + sx * r * .12, y - r * .62); g.fill();
+    if (lk.ears === 'up') {
+      g.fillStyle = c.ear;
+      for (const sx of [-1, 1]) {
+        g.beginPath(); g.moveTo(x + sx * r * .85, y - r * .15); g.lineTo(x + sx * r * .62, y - r * 1.02); g.lineTo(x + sx * r * .12, y - r * .62); g.fill();
+      }
     }
     g.fillStyle = c.main; g.beginPath(); g.arc(x, y + r * .08, r * .8, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#f3e3cc'; g.beginPath(); g.ellipse(x, y + r * .4, r * .42, r * .3, 0, 0, Math.PI * 2); g.fill();
+    if (lk.ears === 'down') {
+      g.fillStyle = c.dark;
+      for (const sx of [-1, 1]) { g.beginPath(); g.ellipse(x + sx * r * .78, y + r * .12, r * .24, r * .5, sx * .3, 0, Math.PI * 2); g.fill(); }
+    }
+    g.fillStyle = lk.pattern === 'solid' ? c.light : c.sub;
+    g.beginPath(); g.ellipse(x, y + r * .4, r * .42, r * .3, 0, 0, Math.PI * 2); g.fill();
     g.fillStyle = '#2b2522';
     for (const sx of [-1, 1]) { g.beginPath(); g.arc(x + sx * r * .3, y - r * .05, r * .09, 0, Math.PI * 2); g.fill(); }
     g.beginPath(); g.arc(x, y + r * .26, r * .11, 0, Math.PI * 2); g.fill();
@@ -902,17 +1041,17 @@
   let photoGen = 0;   // only the latest usePhoto() call may land; a slow earlier decode is dropped
   function usePhoto(src) {
     const gen = ++photoGen;
-    if (!src) { dogPhoto = null; coat = COAT_DEFAULT; renderHero(); return; }
+    if (!src) { dogPhoto = null; photoCoat = null; coat = coatFor(look); renderHero(); return; }
     const img = new Image();
     img.onload = () => {
       if (gen !== photoGen) return;
-      dogPhoto = img; coat = coatFrom(img); renderHero();
+      dogPhoto = img; photoCoat = coatFrom(img); coat = coatFor(look); renderHero();
       if (phase === 'win') {   // picked from the result screen: the share card should show the new face
         document.getElementById('invite').hidden = true;
         rebuildCard();
       }
     };
-    img.onerror = () => { if (gen !== photoGen) return; dogPhoto = null; coat = COAT_DEFAULT; renderHero(); };
+    img.onerror = () => { if (gen !== photoGen) return; dogPhoto = null; photoCoat = null; coat = coatFor(look); renderHero(); };
     img.src = src;
   }
   // the photo can be picked from the title screen or from the result screen's invite; show the error where the player is
@@ -923,6 +1062,8 @@
   {
     const p = loadProfile();
     if (typeof p.name === 'string') { $name.value = p.name.slice(0, 10); dogName = $name.value.trim(); }
+    look = cleanLook(p.look);
+    coat = coatFor(look);
     // only accept the small JPEG we wrote ourselves
     usePhoto(typeof p.photo === 'string' && p.photo.startsWith('data:image/jpeg;base64,') ? p.photo : null);
   }
@@ -1040,6 +1181,69 @@
   });
   photoClear.addEventListener('click', () => { saveProfile({ photo: null }); usePhoto(null); showPhotoErr(''); });
 
+  // うちの子メーカー screen: edits a draft with a live preview; nothing changes until 決定
+  const lookOv = document.getElementById('lookOv');
+  const lookCv = document.getElementById('lookCv');
+  const lookG = lookCv.getContext('2d');
+  let draft = null;
+  function renderLookRows() {
+    document.getElementById('lookRows').replaceChildren(...LOOK_PARTS.map(p => {
+      const row = el('div', 'look-row'), chips = el('div', 'chips');
+      chips.setAttribute('role', 'group');
+      chips.setAttribute('aria-label', p.label);
+      for (const [v, label] of p.options) {
+        const color = p.key === 'main' ? MAIN_COLORS[v] : p.key === 'sub' ? SUB_COLORS[v] : null;
+        const b = el('button', color ? 'swatch' : 'chip', color ? null : (v === 'photo' && !dogPhoto ? 'おまかせ' : label));
+        b.type = 'button';
+        if (color) { b.style.background = color; b.setAttribute('aria-label', label); b.title = label; }
+        b.setAttribute('aria-pressed', String(draft[p.key] === v));
+        b.addEventListener('click', () => {
+          draft[p.key] = v;
+          for (const o of chips.children) o.setAttribute('aria-pressed', String(o === b));
+          drawLookPreview();
+        });
+        chips.append(b);
+      }
+      row.append(el('span', 'hero-lbl', p.label), chips);
+      return row;
+    }));
+  }
+  function drawLookPreview(time = performance.now() / 1000) {
+    const g = lookG, w = lookCv.width, h = lookCv.height;
+    g.fillStyle = '#7fae5a'; g.fillRect(0, 0, w, h);
+    g.fillStyle = 'rgba(255,255,255,.05)';
+    for (let i = -h; i < w; i += 60) { g.beginPath(); g.moveTo(i, 0); g.lineTo(i + 30, 0); g.lineTo(i + 30 + h, h); g.lineTo(i + h, h); g.fill(); }
+    paintDog(g, { x: w / 2 - 20, y: h / 2 + 6, ang: 0, vx: 90, vy: 0, down: false },
+      { look: draft, coat: coatFor(draft), photo: dogPhoto, k: 4.3 * SIZES[draft.size].k, headR: 13, time });
+  }
+  function lookLoop() {
+    if (lookOv.hidden) return;
+    drawLookPreview();
+    requestAnimationFrame(lookLoop);
+  }
+  function openLook() {
+    draft = { ...look };
+    renderLookRows();
+    lookOv.hidden = false;
+    drawLookPreview();
+    requestAnimationFrame(lookLoop);
+    document.querySelector('#lookRows [aria-pressed="true"]').focus();
+  }
+  function closeLook() {
+    const wasOpen = !lookOv.hidden;
+    lookOv.hidden = true; draft = null;
+    if (wasOpen) document.getElementById('lookBtn').focus();
+  }
+  document.getElementById('lookBtn').addEventListener('click', openLook);
+  document.getElementById('lookCancel').addEventListener('click', closeLook);
+  document.getElementById('lookOk').addEventListener('click', () => {
+    look = cleanLook(draft);
+    coat = coatFor(look);
+    saveProfile({ look });
+    renderHero();
+    closeLook();
+  });
+
   // ---------- share: a result card the player sends themselves (nothing is uploaded by the game) ----------
   function shareText(r) {
     return (r.name ? r.name + 'は' : '') + r.rank + '！ ひつじ追いワンコ ステージ' + (r.stage + 1) + '「' + STAGES[r.stage].name + '」を'
@@ -1063,10 +1267,23 @@
     g.beginPath();
     if (g.roundRect) g.roundRect(70, 70, 940, 940, 48); else g.rect(70, 70, 940, 940);
     g.fill();
+    // a strip of meadow behind the dog and sheep, so dark coats still read against the dark card
+    g.fillStyle = '#6f9e4c';
+    g.beginPath();
+    if (g.roundRect) g.roundRect(100, 225, 880, 210, 105); else g.rect(100, 225, 880, 210);
+    g.fill();
     // the hero
     g.fillStyle = '#34482c'; g.beginPath(); g.arc(540, 300, 160, 0, Math.PI * 2); g.fill();
     drawFace(g, 540, 300, dogPhoto ? 148 : 128);
     g.strokeStyle = '#f2c230'; g.lineWidth = 14; g.beginPath(); g.arc(540, 300, 154, 0, Math.PI * 2); g.stroke();
+    // the whole dog herding a few sheep beside the face, so coat, pattern and tail show too
+    paintDog(g, { x: 215, y: 330, ang: 0, vx: 120, vy: 0, down: false },
+      { look, coat, photo: dogPhoto, k: 3.6 * SIZES[look.size].k, headR: 13, time: .2 });
+    for (const [sx, sy] of [[835, 245], [915, 320], [840, 395]]) {
+      g.save(); g.translate(sx, sy); g.scale(3, 3);
+      drawSheep({ x: 0, y: 0, r: 11, vx: 0, vy: 0, ang: Math.PI * .08, type: 'normal', phase: 0, fear: 0, alarm: 0, inside: false }, g);
+      g.restore();
+    }
     g.textAlign = 'center'; g.textBaseline = 'alphabetic';
     const headline = (r.name ? r.name + 'は' : '') + r.rank + '！';
     // the rounded body face has full kanji coverage (the logo face lacks words like 牧羊犬)
@@ -1178,9 +1395,9 @@
     o.start(now); o.stop(now + dur + .02);
   }
   const sfx = {
-    bark() {
-      tone({ type: 'sawtooth', f0: 520, f1: 230, dur: .12, vol: .25, lp: 1400 });
-      tone({ type: 'sawtooth', f0: 600, f1: 270, at: .13, dur: .12, vol: .22, lp: 1400 });
+    // notes: [startHz, endHz, delay, duration]; pitch follows the dog's size (small dogs yap higher)
+    bark(notes, pitch = 1) {
+      for (const [f0, f1, at, dur] of notes) tone({ type: 'sawtooth', f0: f0 * pitch, f1: f1 * pitch, at, dur, vol: .24, lp: 1400 });
     },
     baa(p = 1) { tone({ type: 'triangle', f0: 330 * p, f1: 290 * p, dur: .45, vol: .14, lp: 1800, vib: 8 }); },
     clack() {
@@ -1285,6 +1502,7 @@
   addEventListener('keydown', e => {
     if (!cropOv.hidden) { if (e.key === 'Escape') closeCrop(); return; }
     if (!shareOv.hidden) { if (e.key === 'Escape') closeShare(); return; }
+    if (!lookOv.hidden) { if (e.key === 'Escape') closeLook(); return; }
     if (!stageOv.hidden) { if (e.key === 'Escape') toTitle(); return; }
     if (e.target instanceof HTMLInputElement) return; // typing the dog's name
     const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
@@ -1339,22 +1557,29 @@
       const b = el('button', 'stage-btn');
       b.type = 'button';
       b.disabled = !unlocked(i);
-      const stars = progress.stars[i] || 0, best = progress.best[i];
+      const stars = savedStars(i), best = progress.best[i], open = unlocked(i);
+      const mark = ok => (ok ? '✓' : '−');
       b.append(
         el('span', 'st-num', String(i + 1)),
         el('span', 'st-name', S.name),
-        el('span', 'st-stars', unlocked(i) ? starText(stars) : ''),
-        el('span', 'st-meta', !unlocked(i) ? '前のステージをクリアすると遊べます' : best ? 'ベスト ' + fmt(best) : 'まだクリアしていません'),
+        el('span', 'st-stars', open ? starText(stars) : ''),
+        el('span', 'st-meta', !open ? '前のステージをクリアすると遊べます'
+          : best ? 'ベスト ' + fmt(best) + '　目標' + S.par + '秒 ' + mark(progress.time[i]) : 'まだクリアしていません'),
+        el('span', 'st-mission', open ? 'お題：' + S.mission.text + ' ' + mark(progress.mission[i]) : ''),
       );
-      b.setAttribute('aria-label', 'ステージ' + (i + 1) + ' ' + S.name + (unlocked(i) ? '、星' + stars + 'つ' : '、まだ遊べません'));
+      b.setAttribute('aria-label', 'ステージ' + (i + 1) + ' ' + S.name + (open ? '、星' + stars + 'つ、お題：' + S.mission.text : '、まだ遊べません'));
       b.addEventListener('click', () => startStage(i));
       return b;
     }));
+    // players whose old time-based ★3 became ★2 are told why, once
+    const notice = document.getElementById('stageNotice');
+    notice.hidden = !progress.notice;
+    if (progress.notice) { progress.notice = false; saveProgress(); }
     hideOverlays();
     stageOv.hidden = false;
     // focus the furthest stage the player can play
     const btns = [...list.querySelectorAll('button:not(:disabled)')];
-    (btns.find((b, i) => !progress.stars[i]) || btns[btns.length - 1]).focus();
+    (btns.find((b, i) => !progress.cleared[i]) || btns[btns.length - 1]).focus();
   }
   function pause() {
     if (phase !== 'play') return;
@@ -1362,6 +1587,7 @@
     joy = null; mouseHeld = false; setDown(false);
     for (const k in keys) keys[k] = false;
     bgmStop();
+    document.getElementById('pauseMission').textContent = 'お題：' + ST.mission.text;
     pauseOv.hidden = false;
     renderPauseBtn();
     document.getElementById('resumeBtn').focus();

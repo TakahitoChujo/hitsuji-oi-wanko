@@ -90,11 +90,28 @@ body { margin: 0; font-size: 14px; }
   .stage-btn .st-meta { grid-area: meta; font-size: .75rem; font-weight: 700; color: var(--muted); font-variant-numeric: tabular-nums; }
   .stage-btn:disabled .st-num { color: var(--muted); }
 
+  .stage-btn { grid-template-areas: "num name stars" "num meta meta" "num mission mission"; }
+  .stage-btn .st-mission { grid-area: mission; font-size: .72rem; font-weight: 700; color: var(--muted); }
+  .card .notice { padding: 10px 12px; border-radius: 12px; background: var(--moss-2); color: var(--gorse); font-weight: 800; font-size: .85rem; }
+  .card .pause-mission { color: var(--gorse); font-weight: 800; }
+
+  /* うちの子メーカー */
+  .look-card { gap: 10px; }
+  #lookCv { width: 100%; max-width: 360px; height: auto; aspect-ratio: 480 / 200; justify-self: center; border-radius: 12px; }
+  .look-rows { display: grid; gap: 8px; }
+  .look-row { display: grid; grid-template-columns: 4.6rem 1fr; align-items: center; gap: 8px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 5px; min-width: 0; }
+  .chips .chip { padding: 5px 10px; font-size: .8rem; background: var(--moss-2); }
+  .chips .swatch { width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 2px solid var(--moss-2); }
+  .chips [aria-pressed="true"] { outline: 3px solid var(--gorse); outline-offset: 1px; }
+  .chips .chip[aria-pressed="true"] { background: var(--gorse); color: var(--moss); outline: none; }
+
   /* result */
+  .checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-weight: 800; font-size: .9rem; color: var(--muted); }
+  .checks li.ok { color: var(--gorse); }
   .card .win-stage { text-align: center; font-weight: 800; color: var(--muted); }
   #winOv h2 { text-align: center; }
   .win-stars { text-align: center; font-size: 2.4rem; line-height: 1; color: var(--gorse); letter-spacing: .12em; }
-  .win-goal { font-size: .85rem; color: var(--muted); }
   .card .all-clear { text-align: center; color: var(--gorse); font-weight: 800; }
 
   /* title */
