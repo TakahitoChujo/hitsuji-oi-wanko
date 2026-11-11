@@ -18,6 +18,7 @@
   const DOG_R = 12;
   // touch stick: full speed at JOY_FULL px of thumb travel; past JOY_R the base trails the thumb
   const JOY_R = 50, JOY_FULL = 40;
+  const MSG_H = 54;   // px band above the field for the message banner (two lines at most)
   const FLEE_R = 150, BARK_R = 230, EYE_R = 210, GATE_REACH = 95;
   let W = 960, H = 600, scale = 1, ox = 0, oy = 0, dpr = 1;
   let pen, fences, trees, walls, muds, bridge, grass;
@@ -1693,8 +1694,11 @@
     // keep the thumb pad off the field: reserve a strip below (portrait) or to the right (landscape)
     let aw = cw, ah = ch;
     if (matchMedia('(pointer: coarse)').matches) { if (cw >= ch) aw = cw - 112; else ah = ch - 108; }
+    // the message band sits above the field: messages must never cover the pen and gate (always top-right),
+    // least of all "close the gate now" while the player is working right there
+    ah -= MSG_H;
     scale = Math.min(aw / W, ah / H);
-    ox = (aw - W * scale) / 2; oy = (ah - H * scale) / 2;
+    ox = (aw - W * scale) / 2; oy = MSG_H + (ah - H * scale) / 2;
   }
   // the field's shape (wide or tall) is chosen when a stage is built. Rebuilding mid-game would scramble the
   // sheep, so a turned phone gets a fresh field only between games; during play the goal banner explains.
