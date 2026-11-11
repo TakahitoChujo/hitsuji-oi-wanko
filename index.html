@@ -3,13 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'none'; media-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; manifest-src 'self'">
 <meta name="referrer" content="no-referrer">
 <title>うちの子、牧羊犬になる。｜うちの子ワークス</title>
 <meta name="description" content="愛犬の写真で、うちの子が主人公に。犬を操って羊を小屋に追い込むブラウザゲーム。うちの子ワークス第1弾。">
 <meta name="theme-color" content="#24331f">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
+<!-- "add to home screen" runs full screen, with no browser bars to hit by accident -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="うちの子牧羊犬">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- link previews (LINE, X, Slack, ...) -->
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="うちの子ワークス">
@@ -26,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.6.1">
+<link rel="stylesheet" href="style.css?v=0.6.2">
 </head>
 <body>
 <div class="app">
@@ -53,6 +59,11 @@
       <div class="card">
         <p class="series">UCHINOKO WORKS／うちの子ワークス</p>
         <h1>うちの子、<span>牧羊犬になる。</span></h1>
+        <div class="notice" id="inAppNotice" hidden>
+          <p>アプリの中のブラウザだと、操作中に画面が閉じやすくなります。</p>
+          <p id="inAppHow">ふだん使っているブラウザで開くと、ずっと遊びやすくなります。</p>
+          <a class="btn" id="openBrowser" href="#">ブラウザで開く</a>
+        </div>
         <p>羊を小屋に追い込んで、最後にゲートを閉めたらクリア。全5ステージ。</p>
         <button id="startBtn" class="primary" type="button">あそぶ</button>
         <section class="hero" aria-label="主人公">
@@ -70,6 +81,8 @@
         </section>
         <p class="note">写真はこの端末の中だけで使います。どこにも送信されません。</p>
         <p class="note ios-only" hidden>音が出ないときは、iPhone のマナーモードを解除してください。</p>
+        <p class="note home-tip" id="homeTipIOS" hidden>ホーム画面に追加すると、全画面で遊べます（Safari の共有ボタン →「ホーム画面に追加」）。</p>
+        <p class="note home-tip" id="homeTipAndroid" hidden>ホーム画面に追加すると、全画面で遊べます（ブラウザのメニュー →「ホーム画面に追加」）。</p>
         <p class="err" id="photoErr" role="alert" hidden></p>
         <details class="how-wrap" id="howTo">
           <summary>操作方法</summary>
@@ -194,6 +207,6 @@
     </div>
   </div>
 </div>
-<script src="game.js?v=0.6.1"></script>
+<script src="game.js?v=0.6.2"></script>
 </body>
 </html>

@@ -17,7 +17,8 @@ body { margin: 0; font-size: 14px; }
     --font-body: "M PLUS Rounded 1c", "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", sans-serif;
     color-scheme: dark;
   }
-  html, body { height: 100%; }
+  /* the page itself never scrolls or bounces: a pull closes LINE's in-app browser and jolts the game */
+  html, body { height: 100%; overscroll-behavior: none; }
   body {
     background: var(--moss);
     color: var(--wool);
@@ -94,6 +95,9 @@ body { margin: 0; font-size: 14px; }
   .stage-btn { grid-template-areas: "num name stars" "num meta meta" "num mission mission"; }
   .stage-btn .st-mission { grid-area: mission; font-size: .72rem; font-weight: 700; color: var(--muted); }
   .card .notice { padding: 10px 12px; border-radius: 12px; background: var(--moss-2); color: var(--gorse); font-weight: 800; font-size: .85rem; }
+  .card .notice p { margin: 0 0 6px; color: var(--wool); font-weight: 700; }
+  .card .notice .btn { margin-top: 4px; width: 100%; background: var(--gorse); color: var(--moss); }
+  .card .home-tip { color: var(--gorse); }
   .card .pause-mission { color: var(--gorse); font-weight: 800; }
 
   /* うちの子メーカー */
@@ -166,7 +170,7 @@ body { margin: 0; font-size: 14px; }
   .pad {
     position: absolute; display: none; gap: 12px; align-items: flex-end;
     right: max(16px, env(safe-area-inset-right, 0px));
-    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    bottom: calc(24px + env(safe-area-inset-bottom, 0px));   /* clear of Safari's tap-to-show toolbar zone */
   }
   .pad button {
     width: 68px; height: 68px; padding: 0; border-radius: 50%;
@@ -191,6 +195,7 @@ body { margin: 0; font-size: 14px; }
     padding-right: max(16px, env(safe-area-inset-right, 0px));
     background: rgba(36, 51, 31, .55);
     overflow-y: auto;
+    overscroll-behavior: contain;
   }
   .card {
     max-width: 30rem; width: 100%; margin-block: 16px;

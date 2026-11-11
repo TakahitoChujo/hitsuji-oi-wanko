@@ -35,6 +35,21 @@
   const isIOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   if (isIOS) for (const el of document.querySelectorAll('.ios-only')) el.hidden = false;
 
+  // In-app browsers close on a downward swipe and keep their own bars on screen. LINE opens the page in the
+  // phone's real browser when the URL carries openExternalBrowser=1, so offer exactly that.
+  const inApp = / Line\//i.test(navigator.userAgent) ? 'line' : /Instagram|FBAN|FBAV/i.test(navigator.userAgent) ? 'other' : null;
+  const standalone = matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const withExternal = url => { const u = new URL(url); u.hash = ''; u.searchParams.set('openExternalBrowser', '1'); return u.toString(); };
+  if (inApp) {
+    document.getElementById('inAppNotice').hidden = false;
+    const open = document.getElementById('openBrowser');
+    if (inApp === 'line') open.href = withExternal(location.href);
+    else { open.hidden = true; document.getElementById('inAppHow').textContent = '右上のメニュー（…）から「ブラウザで開く」を選んでください。'; }
+  } else if (!standalone && matchMedia('(pointer: coarse)').matches) {
+    // on a phone browser, the home-screen version runs full screen with no browser bars to hit by accident
+    document.getElementById(isIOS ? 'homeTipIOS' : 'homeTipAndroid').hidden = false;
+  }
+
   // ---------- stages ----------
   // sheep personalities: how hard they flee, how fast they panic, how fast they can run
   const TYPES = {
@@ -1349,7 +1364,8 @@
     document.getElementById('shareImg').src = shareUrl;
     document.getElementById('shareSave').href = shareUrl;
     document.getElementById('shareX').href = 'https://x.com/intent/post?text=' + encodeURIComponent(text) + '&url=' + encodeURIComponent(SITE);
-    document.getElementById('shareLine').href = 'https://line.me/R/msg/text/?' + encodeURIComponent(text + ' ' + SITE);
+    // friends tapping the link inside LINE get the game in their real browser, where it's easier to play
+    document.getElementById('shareLine').href = 'https://line.me/R/msg/text/?' + encodeURIComponent(text + ' ' + withExternal(SITE));
     document.getElementById('sharePhotoNote').hidden = !dogPhoto;
     document.getElementById('shareCopy').textContent = '文章をコピー';
     document.getElementById('shareTextWrap').hidden = true;
@@ -1535,6 +1551,28 @@
   document.addEventListener('visibilitychange', () => { if (document.hidden) pause(); });
   addEventListener('pagehide', pause);
 
+  // Keep the page still on touch screens: a downward pull closes LINE's browser sheet, and the page must not
+  // bounce or zoom while a thumb is steering. Overlays that actually scroll, and sliders, keep their gestures.
+  document.addEventListener('touchmove', e => {
+    if (e.target.closest('input')) return;
+    const ov = e.target.closest('.overlay');
+    if (ov && ov.scrollHeight > ov.clientHeight + 1) return;
+    e.preventDefault();
+  }, { passive: false });
+  document.addEventListener('gesturestart', e => e.preventDefault());   // iOS pinch-zoom
+
+  // An iPhone edge swipe (or Android back) mid-stage pauses the game instead of leaving the page.
+  // Going back again from the pause menu really leaves.
+  let backGuard = false;
+  function guardBack() {
+    if (backGuard) return;
+    try { history.pushState({ uchinoko: 'stage' }, ''); backGuard = true; } catch (e) {}
+  }
+  addEventListener('popstate', () => {
+    backGuard = false;
+    if (phase === 'play') { pause(); guardBack(); }
+  });
+
   const downBtn = document.getElementById('downBtn');
   const setDown = v => { downHeld = v; downBtn.classList.toggle('held', v); };
   downBtn.addEventListener('pointerdown', e => { e.preventDefault(); setDown(true); downBtn.setPointerCapture(e.pointerId); });
@@ -1553,6 +1591,7 @@
     phase = 'play';
     hideOverlays();
     renderPauseBtn();
+    guardBack();
     bgmStart();
   }
   function startStage(i) {

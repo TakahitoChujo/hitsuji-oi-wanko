@@ -1,0 +1,29 @@
+{
+  "name": "うちの子、牧羊犬になる。",
+  "short_name": "うちの子牧羊犬",
+  "description": "愛犬の写真で、うちの子が主人公に。羊を小屋に追い込むブラウザゲーム（うちの子ワークス）",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#24331f",
+  "theme_color": "#24331f",
+  "icons": [
+    {
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
