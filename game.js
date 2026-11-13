@@ -67,10 +67,11 @@
   // best time of a herding bot; provisional until real playtests. Missions reward a technique (eye, sparing
   // barks, using the leader) without ever being required to progress.
   const STAGES = [
-    { name: 'はじめての牧場', flock: { normal: 6 }, par: 55,
-      trees: [[.45, .38, 32], [.62, .74, 26, 1]],
+    // the first stage is a short, sure win: a small, tight flock already halfway to the pen and nothing in the way
+    { name: 'はじめての牧場', flock: { normal: 5 }, par: 45, spawn: [.4, .58], spread: 40,
+      trees: [[.15, .3, 30], [.75, .8, 26, 1]],
       mission: { text: 'ワン！を使わずにクリア', ok: r => r.barks === 0 },
-      hint: 'まずは6頭。羊のうしろに回り込んで、右上の小屋へ押していこう' },
+      hint: 'まずは5頭。羊のうしろに回り込んで、右上の小屋へ押していこう' },
     { name: '木立の牧場', flock: { normal: 10, leader: 1 }, par: 90,
       trees: [[.45, .37, 34], [.31, .75, 30], [.68, .72, 26, 1], [.58, .2, 22, 1]],
       mission: { text: 'リーダー羊を一番最初に小屋に入れる', ok: r => r.firstIn === 'leader' },
@@ -189,7 +190,8 @@
     const order = [];
     for (const [type, n] of Object.entries(ST.flock)) for (let i = 0; i < n; i++) order.push(type);
     order.sort((a, b) => (a === 'lamb') - (b === 'lamb'));   // lambs last, so each can stand by a mother
-    const cx = W * .25, cy = H * .72, spread = 90 + order.length * 6;
+    const [su, sv] = ST.spawn || [.25, .72];
+    const cx = W * su, cy = H * sv, spread = ST.spread || 90 + order.length * 6;
     const penBox = { x0: pen.x - 40, y0: 0, x1: W, y1: pen.y + pen.h + 30 };
     for (const type of order) {
       const r = TYPES[type].r;
@@ -485,6 +487,8 @@
       }
       // outside sheep keep off the pen's outer walls too, so none ends up pinned along the bottom of the pen
       if (!s.inside && s.y > pen.y + pen.h && s.y < pen.y + pen.h + 50 && s.x > pen.x - 10) fy += (pen.y + pen.h + 50 - s.y) * 7;
+      // and drift out of the pocket between the pen and the right fence, back toward the gate side
+      if (!s.inside && s.y > pen.y + pen.h && s.y < pen.y + pen.h + 100 && s.x > pen.x) fx -= 90;
       for (const w of walls) {
         const qx = Math.max(w.x0, Math.min(w.x1, s.x)), qy = Math.max(w.y0, Math.min(w.y1, s.y));
         const ex = s.x - qx, ey = s.y - qy, dd = Math.hypot(ex, ey) || 1, rr = s.r + 24;
@@ -1064,6 +1068,12 @@
     renderAvatar(document.getElementById('avatar'));
     renderAvatar(document.getElementById('winAvatar'));
     photoClear.hidden = !dogPhoto;
+    // the dog's own photo is the point of the game, so until there is one it is the first thing offered
+    const photoStart = document.getElementById('photoStart'), startBtn = document.getElementById('startBtn');
+    photoStart.hidden = !!dogPhoto;
+    document.getElementById('photoBtn').hidden = !dogPhoto;
+    startBtn.classList.toggle('primary', !!dogPhoto);
+    startBtn.textContent = dogPhoto ? 'あそぶ' : 'この子のまま遊ぶ';
   }
   let photoGen = 0;   // only the latest usePhoto() call may land; a slow earlier decode is dropped
   function usePhoto(src) {
@@ -1109,6 +1119,7 @@
   let pickGen = 0;                // a slow decode of an earlier pick must not replace a newer one
 
   document.getElementById('photoBtn').addEventListener('click', () => { showPhotoErr(''); photoInput.click(); });
+  document.getElementById('photoStart').addEventListener('click', () => { showPhotoErr(''); photoInput.click(); });
   photoInput.addEventListener('change', () => {
     const f = photoInput.files && photoInput.files[0];
     photoInput.value = '';
@@ -1191,7 +1202,7 @@
   function closeCrop() {
     const wasOpen = !cropOv.hidden;
     crop = null; drag = null; cropOv.hidden = true;
-    if (wasOpen) document.getElementById(titleOv.hidden ? 'shareBtn' : 'photoBtn').focus();
+    if (wasOpen) document.getElementById(!titleOv.hidden ? 'startBtn' : 'shareBtn').focus();
   }
   document.getElementById('cropCancel').addEventListener('click', closeCrop);
   document.getElementById('cropOk').addEventListener('click', () => {
@@ -1671,7 +1682,8 @@
   pauseBtn.addEventListener('click', pause);
   document.getElementById('resumeBtn').addEventListener('click', resume);
   document.getElementById('titleBtn').addEventListener('click', openStages);
-  document.getElementById('startBtn').addEventListener('click', openStages);
+  // a first-time player goes straight into stage 1; the stage list only helps once there is something to pick
+  document.getElementById('startBtn').addEventListener('click', () => (progress.cleared[0] ? openStages() : startStage(0)));
   document.getElementById('stageBack').addEventListener('click', toTitle);
   document.getElementById('againBtn').addEventListener('click', start);
   document.getElementById('restartBtn').addEventListener('click', start);

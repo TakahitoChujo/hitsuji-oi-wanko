@@ -63,6 +63,8 @@ body { margin: 0; font-size: 14px; }
   .hero-lbl { font-size: .72rem; color: var(--muted); letter-spacing: .08em; }
   .hero-btns { display: flex; flex-wrap: wrap; gap: 6px; }
   .hero-btns button { padding: 6px 12px; font-size: .85rem; background: var(--moss); }
+  .title-menu button { padding-block: 14px; font-size: 1.05rem; }
+  #titleOv .lead { line-height: 1.7; }
   #dogName {
     font: inherit; font-weight: 800; width: 100%;
     padding: 6px 10px; border-radius: 8px;

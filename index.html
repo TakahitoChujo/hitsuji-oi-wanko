@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=M+PLUS+Rounded+1c:wght@400;700;800&display=swap">
 <!-- bump ?v= on every release so browsers never mix a new page with a cached old script -->
-<link rel="stylesheet" href="style.css?v=0.6.4">
+<link rel="stylesheet" href="style.css?v=0.7.0">
 </head>
 <body>
 <div class="app">
@@ -64,21 +64,24 @@
           <p id="inAppHow">ふだん使っているブラウザで開くと、ずっと遊びやすくなります。</p>
           <a class="btn" id="openBrowser" href="#">ブラウザで開く</a>
         </div>
-        <p>羊を小屋に追い込んで、最後にゲートを閉めたらクリア。全5ステージ。</p>
-        <button id="startBtn" class="primary" type="button">あそぶ</button>
+        <p class="lead">うちの子の写真で、うちの子が主人公に。<br>羊を小屋に追い込もう！</p>
         <section class="hero" aria-label="主人公">
           <canvas id="avatar" width="144" height="144" aria-hidden="true"></canvas>
           <div class="hero-ctl">
             <label class="hero-lbl" for="dogName">主人公の名前</label>
             <input id="dogName" type="text" maxlength="10" placeholder="ワンコ" autocomplete="off" enterkeyhint="done">
             <div class="hero-btns">
-              <button id="photoBtn" type="button">うちの子の写真を使う</button>
+              <button id="photoBtn" type="button" hidden>写真を変える</button>
               <button id="lookBtn" type="button">見た目を整える</button>
               <button id="photoClear" type="button" hidden>写真を外す</button>
             </div>
             <input id="photoInput" type="file" accept="image/*" hidden>
           </div>
         </section>
+        <div class="menu title-menu">
+          <button id="photoStart" class="primary" type="button">うちの子の写真で遊ぶ</button>
+          <button id="startBtn" type="button">この子のまま遊ぶ</button>
+        </div>
         <p class="note">写真はこの端末の中だけで使います。どこにも送信されません。</p>
         <p class="note ios-only" hidden>音が出ないときは、iPhone のマナーモードを解除してください。</p>
         <p class="note home-tip" id="homeTipIOS" hidden>ホーム画面に追加すると、全画面で遊べます（Safari の共有ボタン →「ホーム画面に追加」）。</p>
@@ -207,6 +210,6 @@
     </div>
   </div>
 </div>
-<script src="game.js?v=0.6.4"></script>
+<script src="game.js?v=0.7.0"></script>
 </body>
 </html>
